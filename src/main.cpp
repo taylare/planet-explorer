@@ -108,6 +108,14 @@ EMSCRIPTEN_KEEPALIVE void wl_set_follow(int active, double cssX, double cssY) {
     if (activeGame) activeGame->setFollowPointer(active != 0, cssX, cssY);
 }
 
+// Hold to scan nearby animals (and creep while doing it).
+EMSCRIPTEN_KEEPALIVE void wl_set_action(int held) {
+    if (activeGame) activeGame->setActionHeld(held != 0);
+}
+
+// Share of the planet's survey list found so far, 0 to 100.
+EMSCRIPTEN_KEEPALIVE int wl_survey_percent() { return activeGame ? activeGame->surveyPercent() : 0; }
+
 // So the joystick graphic matches the distance that gives full speed.
 EMSCRIPTEN_KEEPALIVE double wl_joystick_radius() { return wl::constants::dragFullSpeedInCssPixels; }
 

@@ -207,3 +207,48 @@ TEST_CASE("moons and the aurora only appear at night", "[renderer][planet]") {
     REQUIRE(countDifferences(0.5) == 0);    // noon: nothing to see
     REQUIRE(countDifferences(0.0) > 100);   // midnight: the aurora ribbon is drawn
 }
+
+TEST_CASE("the scan reticle draws only while there is a target, and fills with progress", "[renderer][scanner]") {
+    const World world(4);
+    MapChunkSource source;
+    fillAroundOrigin(source, world);
+    Renderer renderer;
+
+    // Place the target a couple of tiles from the player so the reticle lands on screen.
+    ScanStatus status;
+    status.hasTarget = true;
+    status.targetPosition = {2.0, 0.0};
+    status.progress = 0.0;
+
+    const auto drawWith = [&](const ScanStatus* scan) {
+        Framebuffer framebuffer;
+        framebuffer.resize(160, 160);
+        SceneView scene = sceneAt(source, 0.5);
+        scene.scan = scan;
+        renderer.drawFrame(framebuffer, scene);
+        return framebuffer;
+    };
+    const auto countPixelsOfColor = [](const Framebuffer& framebuffer, const constants::Rgb8& color) {
+        const PackedColor wanted = packRgba(color.red, color.green, color.blue);
+        int count = 0;
+        for (int index = 0; index < framebuffer.width() * framebuffer.height(); ++index) {
+            if (framebuffer.pixels()[index] == wanted) ++count;
+        }
+        return count;
+    };
+
+    const Framebuffer withoutScan = drawWith(nullptr);
+    const Framebuffer emptyBar = drawWith(&status);
+    status.progress = 1.0;
+    const Framebuffer fullBar = drawWith(&status);
+    status.hasTarget = false;
+    const Framebuffer noTarget = drawWith(&status);
+
+    // Brackets plus any filled part of the bar use the scanner colour.
+    const int baseline = countPixelsOfColor(withoutScan, constants::scannerColor);
+    const int bracketsOnly = countPixelsOfColor(emptyBar, constants::scannerColor);
+    const int bracketsAndBar = countPixelsOfColor(fullBar, constants::scannerColor);
+    REQUIRE(bracketsOnly > baseline);
+    REQUIRE(bracketsAndBar > bracketsOnly);
+    REQUIRE(countPixelsOfColor(noTarget, constants::scannerColor) == baseline);
+}

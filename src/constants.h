@@ -545,10 +545,32 @@ inline constexpr double discoveryCheckIntervalSeconds = 0.25;
 // flickering while you walk along a coastline.
 inline constexpr double biomeAnnounceDelaySeconds = 1.2;
 
+// --- Field scanner ---
+
+// Hold the action button near an animal to scan it. While holding, the player
+// creeps (sneaks), and animals only startle at a shorter range.
+inline constexpr double scanRangeInTiles = 4.0;
+inline constexpr double scanDurationSeconds = 1.5;
+
+// Progress drains this many times faster than it builds once a scan is interrupted.
+inline constexpr double scanDecayMultiplier = 2.0;
+
+// Walking speed multiplier while the action button is held.
+inline constexpr double sneakSpeedMultiplier = 0.4;
+
+// A sneaking player startles animals at this fraction of their usual flee
+// radius. Every species' value must stay below scanRangeInTiles, or it could
+// never be scanned without scaring it off.
+inline constexpr double sneakStartleFraction = 0.55;
+
+inline constexpr Rgb8 scannerColor{120, 235, 255};
+inline constexpr Rgb8 scannerLoggedColor{160, 170, 190};
+inline constexpr Rgb8 scannerTrackColor{24, 34, 56};
+
 // --- Saving ---
 
 inline constexpr double autosaveIntervalSeconds = 10.0;
-inline constexpr int saveFormatVersion = 1;
+inline constexpr int saveFormatVersion = 2;
 
 // Sanity limit when loading, so a corrupt save can't ask for billions of entries.
 inline constexpr int maxSavedEntries = 4000000;

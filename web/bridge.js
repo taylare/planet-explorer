@@ -36,6 +36,7 @@ Module.wanderlightBanner = function (text, mode) {
 
 Module.wanderlightJournalChanged = function () {
   wanderlightCallUi('setJournal', JSON.parse(UTF8ToString(Module._wl_journal_json())));
+  wanderlightCallUi('setSurvey', Module._wl_survey_percent());
 };
 
 Module.wanderlightWorldChanged = function (seed) {
@@ -104,6 +105,14 @@ function wanderlightAttachInput(canvas) {
   };
 
   const onKey = (event, held) => {
+    // E is the scan button: hold it near an animal.
+    if (event.code === 'KeyE') {
+      const typing = event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA');
+      if (typing) return;
+      event.preventDefault();
+      Module._wl_set_action(held ? 1 : 0);
+      return;
+    }
     const direction = directionForKey[event.code];
     if (direction === undefined) return;
     // Typing a seed into a text box shouldn't walk the player around.

@@ -1,7 +1,7 @@
 // Everything that survives a reload, and its text format for localStorage.
 //
 // Only what the player changed is saved: the seed, where they are, the
-// clock, which chunks they've seen and the journal. The world itself is
+// clock, which chunks they've seen and the journal (biomes, landmarks and scanned animals). The world itself is
 // regenerated from the seed.
 #pragma once
 

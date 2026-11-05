@@ -19,7 +19,8 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 - Rain over wet ground and snow over cold ground, drifting in as weather fronts
 - Footprints in sand and snow, ripples when you wade
 - A minimap that only fills in where you've been
-- A journal of the first time you found each biome and landmark, with coordinates
+- A field scanner: hold it near an alien animal to log it. Holding it also makes you creep, so animals stay calm long enough to scan
+- A journal of the first time you found each biome, landmark and species, with coordinates, and a survey percentage for the whole planet
 - Automatic saving in your browser, shareable seeds and a "new world" button
 
 ## Controls
@@ -28,6 +29,7 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 | --- | --- | --- |
 | Walk | WASD or arrow keys | Drag on the left half: a joystick appears under your thumb |
 | Walk toward a spot | Hold the mouse button there | Hold a finger on the right half |
+| Scan animals | Hold E | Hold the scan button, bottom left |
 | Journal | J, or the book button | Book button |
 | Change world | Globe button | Globe button |
 
@@ -125,7 +127,8 @@ All game logic is plain C++ with no browser code, so the same code runs in the n
 | `src/weather.*`, `src/day_night.*` | Weather fronts, time of day and colour grading |
 | `src/effects.*` | Footprints and ripples |
 | `src/exploration.*`, `src/journal.*` | Minimap fog of war and discoveries |
-| `src/save_state.*` | Save format for localStorage |
+| `src/scanner.*` | The field scanner: target choice, scan progress |
+| `src/save_state.*` | Save format for localStorage (version 2; version 1 saves still load) |
 | `src/renderer.*`, `src/art.*`, `src/sprite.*` | Framebuffer drawing, lighting, minimap and text-defined sprite art |
 | `src/performance.*` | Frame timings and automatic quality steps |
 | `src/game.*` | Ties it all together with a fixed-timestep loop |

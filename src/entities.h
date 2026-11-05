@@ -31,7 +31,9 @@ class Player {
 public:
     void placeAt(double tileX, double tileY);
 
-    void update(const MoveIntent& intent, const ChunkSource& terrain, double stepSeconds);
+    // speedMultiplier scales top speed, e.g. constants::sneakSpeedMultiplier while scanning.
+    void update(const MoveIntent& intent, const ChunkSource& terrain, double stepSeconds,
+                double speedMultiplier = 1.0);
 
     // Position blended between the last two sim steps, for smooth rendering.
     Vec2 interpolatedPosition(double alpha) const { return lerp(previousPosition_, position_, alpha); }
@@ -86,8 +88,9 @@ Creature makeCreature(Species species, const Vec2& position, ChunkCoord homeChun
 
 // One fixed step of steering: wander, rest, flee the player, stay near home,
 // and turn around at ground the species can't stand on.
+// A sneaking player only startles it at constants::sneakStartleFraction of its usual flee radius.
 void stepCreature(Creature& creature, const ChunkSource& terrain, const Vec2& playerPosition,
-                  double stepSeconds);
+                  double stepSeconds, bool playerSneaking = false);
 
 // Spawns creatures for chunks near the player and removes them when their
 // home chunk drifts out of range. Nothing is saved: revisiting a chunk
@@ -95,7 +98,7 @@ void stepCreature(Creature& creature, const ChunkSource& terrain, const Vec2& pl
 class Wildlife {
 public:
     void update(const ChunkRegion& simulationRegion, WorldSeed seed, const ChunkSource& terrain,
-                const Vec2& playerPosition, double stepSeconds);
+                const Vec2& playerPosition, double stepSeconds, bool playerSneaking = false);
 
     const std::vector<Creature>& creatures() const { return creatures_; }
     void clear();

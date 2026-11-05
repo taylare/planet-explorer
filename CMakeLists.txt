@@ -36,6 +36,7 @@ add_library(wanderlight_core STATIC
   src/props.cpp
   src/renderer.cpp
   src/save_state.cpp
+  src/scanner.cpp
   src/sprite.cpp
   src/weather.cpp
   src/world.cpp

@@ -199,6 +199,29 @@
       font-size: 14px;
     }
     .journal-list .meta { color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* Scan button, bottom left, so a thumb can hold it while steering from the left edge */
+    #scan-button {
+      position: fixed;
+      left: calc(var(--gutter) + env(safe-area-inset-left));
+      bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 1px solid var(--panel-border);
+      background: var(--panel);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      z-index: 5;
+    }
+    #scan-button.active { border-color: var(--accent); color: var(--accent); }
+    #scan-button svg { width: 26px; height: 26px; }
+    #survey-label { color: var(--text-dim); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 4px; }
     .journal-empty { color: var(--text-dim); font-size: 13px; padding: 6px 0; }
 
     /* Planet card at the top of the world panel */
@@ -324,6 +347,11 @@
     </button>
   </div>
 
+  <button id="scan-button" type="button" aria-label="Hold to scan animals (E)" title="Hold to scan animals (E)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="12" cy="12" r="3"/><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/>
+    </svg>
+  </button>
   <div id="seed-label">Seed</div>
   <div id="joystick"><div id="joystick-knob"></div></div>
   <div id="hint"></div>
@@ -340,6 +368,11 @@
       <button class="close-button" type="button" data-close aria-label="Close">&times;</button>
     </header>
     <div class="body">
+      <p id="survey-label">Survey 0%</p>
+      <div class="journal-section">
+        <h3>Wildlife</h3>
+        <ul id="journal-species" class="journal-list"></ul>
+      </div>
       <div class="journal-section">
         <h3>Landmarks</h3>
         <ul id="journal-landmarks" class="journal-list"></ul>
@@ -501,12 +534,28 @@
     function showHintOnce() {
       if (hintAlreadySeen()) return;
       hint.textContent = isTouchDevice
-        ? 'Drag on the left to steer. Hold anywhere on the right to walk there.'
-        : 'Walk with WASD or the arrow keys, or hold the mouse where you want to go.';
+        ? 'Drag on the left to steer. Hold the scan button near an animal to log it.'
+        : 'Walk with WASD or the arrow keys. Hold E near an animal to scan it.';
       hint.classList.add('visible');
       hintTimer = setTimeout(dismissHint, 9000);
     }
     window.addEventListener('keydown', dismissHint);
+
+    // --- Scan button: hold to scan, release to stop ---
+    const scanButton = document.getElementById('scan-button');
+    const setScanHeld = (held) => {
+      scanButton.classList.toggle('active', held);
+      if (Module._wl_set_action) Module._wl_set_action(held ? 1 : 0);
+    };
+    scanButton.addEventListener('pointerdown', (event) => {
+      scanButton.setPointerCapture(event.pointerId);
+      setScanHeld(true);
+      dismissHint();
+    });
+    for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      scanButton.addEventListener(eventName, () => setScanHeld(false));
+    }
+    scanButton.addEventListener('contextmenu', (event) => event.preventDefault());
 
     // --- Joystick and debug overlay ---
     const joystick = document.getElementById('joystick');
@@ -566,7 +615,12 @@
         seedLabel.textContent = `Seed ${seed}`;
         document.getElementById('world-current-seed').textContent = String(seed);
       },
+      setSurvey(percent) {
+        document.getElementById('survey-label').textContent = `Survey ${percent}%`;
+      },
       setJournal(entries) {
+        renderJournalList(document.getElementById('journal-species'),
+          entries.filter((entry) => entry.type === 'species'), 'Hold the scan button near an animal.');
         renderJournalList(document.getElementById('journal-landmarks'),
           entries.filter((entry) => entry.type === 'landmark'), 'Nothing found yet. Keep wandering.');
         renderJournalList(document.getElementById('journal-biomes'),

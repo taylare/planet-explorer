@@ -13,11 +13,24 @@ namespace {
 constexpr const char* formatMagic = "WANDERLIGHT";
 constexpr char biomeEntryTag = 'B';
 constexpr char landmarkEntryTag = 'L';
+constexpr char speciesEntryTag = 'S';
+
+// Saves from before version 2 had no animals in the journal, and still load fine.
+constexpr int oldestReadableVersion = 1;
 
 // Reads "label value..." and checks the label matches.
 bool expectLabel(std::istream& input, const char* label) {
     std::string word;
     return static_cast<bool>(input >> word) && word == label;
+}
+
+char entryTagFor(JournalCategory category) {
+    switch (category) {
+        case JournalCategory::Biome: return biomeEntryTag;
+        case JournalCategory::Landmark: return landmarkEntryTag;
+        case JournalCategory::Species: return speciesEntryTag;
+    }
+    return biomeEntryTag;
 }
 
 bool readCount(std::istream& input, const char* label, int& count) {
@@ -41,8 +54,8 @@ std::string serializeSaveState(const SaveState& state) {
 
     output << "journal " << state.journal.size() << '\n';
     for (const JournalEntry& entry : state.journal) {
-        output << (entry.category == JournalCategory::Biome ? biomeEntryTag : landmarkEntryTag) << ' '
-               << static_cast<int>(entry.id) << ' ' << entry.tileX << ' ' << entry.tileY << ' ' << entry.day << '\n';
+        output << entryTagFor(entry.category) << ' ' << static_cast<int>(entry.id) << ' ' << entry.tileX << ' '
+               << entry.tileY << ' ' << entry.day << '\n';
     }
     output << "end\n";
     return output.str();
@@ -53,7 +66,8 @@ std::optional<SaveState> parseSaveState(std::string_view text) {
     SaveState state;
 
     int version = 0;
-    if (!expectLabel(input, formatMagic) || !(input >> version) || version != constants::saveFormatVersion) {
+    if (!expectLabel(input, formatMagic) || !(input >> version) || version < oldestReadableVersion ||
+        version > constants::saveFormatVersion) {
         return std::nullopt;
     }
 
@@ -94,6 +108,9 @@ std::optional<SaveState> parseSaveState(std::string_view text) {
         } else if (tag == landmarkEntryTag) {
             if (id < 0 || id >= propKindCount || !isJournalLandmark(static_cast<PropKind>(id))) return std::nullopt;
             entry.category = JournalCategory::Landmark;
+        } else if (tag == speciesEntryTag) {
+            if (id < 0 || id >= speciesCount) return std::nullopt;
+            entry.category = JournalCategory::Species;
         } else {
             return std::nullopt;
         }

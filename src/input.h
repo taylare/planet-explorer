@@ -24,6 +24,9 @@ struct InputState {
     double followPointerY = 0.0;
     double followOffsetX = 0.0;   // CSS pixels from the player to the pointer
     double followOffsetY = 0.0;
+
+    // The scan button: hold to scan nearby animals, and to creep while doing so.
+    bool actionHeld = false;
 };
 
 // Length is 0 to 1. Partial lengths come from short drags.

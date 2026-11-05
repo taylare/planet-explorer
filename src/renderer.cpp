@@ -837,6 +837,44 @@ void Renderer::drawAurora(Framebuffer& framebuffer, const PlanetProfile& planet,
     }
 }
 
+// Four corner brackets around the animal, with a progress bar underneath.
+// The bar goes grey and stays empty for an animal that is already in the journal.
+void Renderer::drawScanReticle(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin,
+                               int scale) const {
+    using namespace constants;
+    const ScanStatus& scan = *scene.scan;
+    const Rgb8& accent = scan.alreadyLogged ? scannerLoggedColor : scannerColor;
+
+    // Aim at the body, not the feet.
+    const int bodyRaise = (spriteBaseTileSizeInPixels / 2) * scale;
+    const int centreX = worldToScreenX(origin, scan.targetPosition.x);
+    const int centreY = worldToScreenY(origin, scan.targetPosition.y) - bodyRaise;
+
+    const int halfSize = 5 * scale;
+    const int cornerLength = 2 * scale;
+    for (int offset = 0; offset < cornerLength; ++offset) {
+        for (int sideX = -1; sideX <= 1; sideX += 2) {
+            for (int sideY = -1; sideY <= 1; sideY += 2) {
+                const int cornerX = centreX + sideX * halfSize;
+                const int cornerY = centreY + sideY * halfSize;
+                framebuffer.setPixelClipped(cornerX - sideX * offset, cornerY, toPacked(accent));
+                framebuffer.setPixelClipped(cornerX, cornerY - sideY * offset, toPacked(accent));
+            }
+        }
+    }
+
+    // Progress bar: dark track with a bright fill.
+    const int barWidth = 2 * halfSize;
+    const int barTop = centreY + halfSize + 2 * scale;
+    const int filled = static_cast<int>(std::lround(std::clamp(scan.progress, 0.0, 1.0) * barWidth));
+    for (int row = 0; row < scale; ++row) {
+        for (int column = 0; column < barWidth; ++column) {
+            const Rgb8& color = column < filled ? accent : scannerTrackColor;
+            framebuffer.setPixelClipped(centreX - halfSize + column, barTop + row, toPacked(color));
+        }
+    }
+}
+
 void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
     if (scene.planet && scene.planet->palette != palette_) setPalette(scene.planet->palette);
 
@@ -884,6 +922,9 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
         drawMoons(framebuffer, *scene.planet, scene.lighting, scene.timeSeconds);
         drawAurora(framebuffer, *scene.planet, scene.lighting, scene.timeSeconds);
     }
+
+    // The reticle is UI too, so it stays readable at night.
+    if (scene.scan && scene.scan->hasTarget) drawScanReticle(framebuffer, scene, origin, scale);
 
     // The map is UI, so it goes on last and isn't darkened by night.
     if (scene.minimap) drawMinimap(framebuffer, scene);

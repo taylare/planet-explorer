@@ -68,12 +68,13 @@ bool Player::isMoving() const {
     return std::hypot(velocity_.x, velocity_.y) > constants::idleSpeedTilesPerSecond;
 }
 
-void Player::update(const MoveIntent& intent, const ChunkSource& terrain, double stepSeconds) {
+void Player::update(const MoveIntent& intent, const ChunkSource& terrain, double stepSeconds,
+                    double speedMultiplier) {
     previousPosition_ = position_;
 
     Biome groundBiome = Biome::Grassland;
     tryGetBiome(terrain, tileIndexFor(position_.x), tileIndexFor(position_.y), groundBiome);
-    const double topSpeed = constants::walkSpeedTilesPerSecond * terrainSpeedMultiplier(groundBiome);
+    const double topSpeed = constants::walkSpeedTilesPerSecond * terrainSpeedMultiplier(groundBiome) * speedMultiplier;
 
     // Ease toward the target velocity instead of snapping, so starts and stops feel soft.
     const Vec2 targetVelocity{intent.x * topSpeed, intent.y * topSpeed};
@@ -109,12 +110,12 @@ void Player::update(const MoveIntent& intent, const ChunkSource& terrain, double
 
 std::string_view speciesName(Species species) {
     switch (species) {
-        case Species::Deer: return "Deer";
-        case Species::Rabbit: return "Rabbit";
-        case Species::Crab: return "Crab";
-        case Species::Lizard: return "Lizard";
-        case Species::Goat: return "Mountain Goat";
-        case Species::Fox: return "Snow Fox";
+        case Species::Deer: return "Spire Grazer";
+        case Species::Rabbit: return "Burrow Hopper";
+        case Species::Crab: return "Tide Scuttler";
+        case Species::Lizard: return "Dust Skitter";
+        case Species::Goat: return "Ridge Climber";
+        case Species::Fox: return "Frost Stalker";
         case Species::Count: break;
     }
     return "Unknown";
@@ -169,7 +170,7 @@ Creature makeCreature(Species species, const Vec2& position, ChunkCoord homeChun
 }
 
 void stepCreature(Creature& creature, const ChunkSource& terrain, const Vec2& playerPosition,
-                  double stepSeconds) {
+                  double stepSeconds, bool playerSneaking) {
     using namespace constants;
     const SpeciesTuning& tuning = speciesTuning(creature.species);
     creature.previousPosition = creature.position;
@@ -192,7 +193,8 @@ void stepCreature(Creature& creature, const ChunkSource& terrain, const Vec2& pl
     const double homeY = creature.home.y - creature.position.y;
     const double homeDistance = std::hypot(homeX, homeY);
 
-    creature.fleeing = playerDistance < tuning.fleeRadius && playerDistance > 0.0;
+    const double startleRadius = playerSneaking ? tuning.fleeRadius * sneakStartleFraction : tuning.fleeRadius;
+    creature.fleeing = playerDistance < startleRadius && playerDistance > 0.0;
     if (creature.fleeing) {
         desired = {awayX / playerDistance * tuning.fleeSpeed, awayY / playerDistance * tuning.fleeSpeed};
         creature.wanderAngle = std::atan2(awayY, awayX);  // keep going that way once safe
@@ -256,7 +258,7 @@ void Wildlife::spawnForChunk(const Chunk& chunk, WorldSeed seed) {
 }
 
 void Wildlife::update(const ChunkRegion& simulationRegion, WorldSeed seed, const ChunkSource& terrain,
-                      const Vec2& playerPosition, double stepSeconds) {
+                      const Vec2& playerPosition, double stepSeconds, bool playerSneaking) {
     // Drop creatures whose home has left the area, and forget those chunks
     // so they spawn fresh if the player comes back.
     creatures_.erase(std::remove_if(creatures_.begin(), creatures_.end(),
@@ -279,7 +281,9 @@ void Wildlife::update(const ChunkRegion& simulationRegion, WorldSeed seed, const
         }
     }
 
-    for (Creature& creature : creatures_) stepCreature(creature, terrain, playerPosition, stepSeconds);
+    for (Creature& creature : creatures_) {
+        stepCreature(creature, terrain, playerPosition, stepSeconds, playerSneaking);
+    }
 }
 
 }  // namespace wl

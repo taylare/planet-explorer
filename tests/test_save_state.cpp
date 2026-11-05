@@ -18,6 +18,7 @@ SaveState sampleState() {
     state.journal = {
         {JournalCategory::Biome, static_cast<std::uint8_t>(Biome::Forest), 10, -20, 1},
         {JournalCategory::Landmark, static_cast<std::uint8_t>(PropKind::CrystalGrove), -500, 600, 3},
+        {JournalCategory::Species, static_cast<std::uint8_t>(Species::Fox), 33, 44, 5},
     };
     return state;
 }
@@ -32,6 +33,18 @@ TEST_CASE("save state round-trips exactly", "[save]") {
     const std::optional<SaveState> restored = parseSaveState(serializeSaveState(original));
     REQUIRE(restored.has_value());
     REQUIRE(*restored == original);
+}
+
+TEST_CASE("a version 1 save from before animals still loads", "[save]") {
+    SaveState oldState = sampleState();
+    oldState.journal.pop_back();  // version 1 had no animal entries
+    std::string text = serializeSaveState(oldState);
+    const std::string currentHeader = "WANDERLIGHT " + std::to_string(constants::saveFormatVersion) + "\n";
+    text.replace(0, currentHeader.size(), "WANDERLIGHT 1\n");
+
+    const std::optional<SaveState> restored = parseSaveState(text);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == oldState);
 }
 
 TEST_CASE("an empty state round-trips too", "[save]") {
@@ -53,9 +66,21 @@ TEST_CASE("bad saves are rejected rather than half loaded", "[save]") {
         REQUIRE_FALSE(parseSaveState(good.substr(0, length)).has_value());
     }
 
+    // The version number sits on the first line, right after the magic word.
+    const std::string currentHeader = "WANDERLIGHT " + std::to_string(constants::saveFormatVersion) + "\n";
+    REQUIRE(good.compare(0, currentHeader.size(), currentHeader) == 0);
+
     std::string wrongVersion = good;
-    wrongVersion.replace(wrongVersion.find(" 1\n"), 3, " 99\n");
+    wrongVersion.replace(0, currentHeader.size(), "WANDERLIGHT 99\n");
     REQUIRE_FALSE(parseSaveState(wrongVersion).has_value());
+
+    std::string tooOld = good;
+    tooOld.replace(0, currentHeader.size(), "WANDERLIGHT 0\n");
+    REQUIRE_FALSE(parseSaveState(tooOld).has_value());
+
+    std::string badSpecies = good;
+    badSpecies.replace(badSpecies.find("S 5 "), 4, "S 99 ");
+    REQUIRE_FALSE(parseSaveState(badSpecies).has_value());
 
     std::string badBiome = good;
     badBiome.replace(badBiome.find("B 4 "), 4, "B 99 ");

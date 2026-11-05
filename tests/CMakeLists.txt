@@ -26,6 +26,7 @@ add_executable(wanderlight_tests
   test_props.cpp
   test_renderer.cpp
   test_save_state.cpp
+  test_scanner.cpp
   test_weather.cpp
   test_wildlife.cpp
   test_world.cpp

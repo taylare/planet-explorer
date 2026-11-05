@@ -18,6 +18,7 @@
 #include "planet.h"
 #include "renderer.h"
 #include "save_state.h"
+#include "scanner.h"
 #include "weather.h"
 #include "world.h"
 
@@ -53,6 +54,8 @@ public:
     // Hold to walk: pointer position in CSS pixels from the canvas top-left.
     void setFollowPointer(bool active, double cssX, double cssY);
     void releaseAllInput();
+    // Hold to scan nearby animals. Also makes the player creep so animals stay calm.
+    void setActionHeld(bool held) { input_.actionHeld = held; }
 
     // Run however many sim steps are due, stream chunks, then draw one frame.
     void advanceFrame(double realDeltaSeconds);
@@ -80,6 +83,8 @@ public:
     const TrailEffects& trails() const { return trails_; }
     const Exploration& exploration() const { return exploration_; }
     const Journal& journal() const { return journal_; }
+    const Scanner& scanner() const { return scanner_; }
+    int surveyPercent() const { return journal_.surveyPercent(); }
     const ChunkCache& chunkCache() const { return chunkCache_; }
     const StreamingStats& lastStreamingStats() const { return lastStreamingStats_; }
     const FrameTimings& frameTimings() const { return profiler_.smoothed(); }
@@ -100,6 +105,7 @@ private:
     void simulateStep(double stepSeconds);
     void updateBiomeAnnouncement(Biome groundBiome, double stepSeconds);
     void checkLandmarkDiscoveries();
+    void updateScanner(double stepSeconds);
     void rebuildMinimapMarkers();
     void render(double interpolationAlpha);
 
@@ -127,6 +133,7 @@ private:
     TrailEffects trails_;
     Exploration exploration_;
     Journal journal_;
+    Scanner scanner_;
     MinimapView minimapView_;
 
     // Camera position is simulated (it eases after the player) and

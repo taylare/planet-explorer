@@ -14,6 +14,7 @@
 #include "exploration.h"
 #include "framebuffer.h"
 #include "planet.h"
+#include "scanner.h"
 #include "sprite.h"
 #include "weather.h"
 #include "world.h"
@@ -77,6 +78,7 @@ struct SceneView {
     const TrailEffects* trails = nullptr;
     const WeatherState* weather = nullptr;
     const MinimapView* minimap = nullptr;
+    const ScanStatus* scan = nullptr;       // reticle while scanning; null draws none
     const PlanetProfile* planet = nullptr;  // palette, moons and aurora; null draws the default look
     double interpolationAlpha = 1.0;
     LightingState lighting;
@@ -137,6 +139,7 @@ private:
     void drawTrails(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin, int scale) const;
     void drawWeather(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin, int scale) const;
     void drawMinimap(Framebuffer& framebuffer, const SceneView& scene) const;
+    void drawScanReticle(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin, int scale) const;
     void applyLighting(Framebuffer& framebuffer, const LightingState& lighting, int tileSize);
     void drawStars(Framebuffer& framebuffer, const LightingState& lighting, double timeSeconds);
     void drawMoons(Framebuffer& framebuffer, const PlanetProfile& planet, const LightingState& lighting,

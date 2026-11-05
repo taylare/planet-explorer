@@ -236,7 +236,9 @@ void Game::simulateStep(double stepSeconds) {
     // A longer planetary day means the clock runs slower.
     dayNight_.advance(stepSeconds / planet_.dayLengthScale);
     updateFollowOffset();  // the player moved, so the held point's direction changed
-    player_.update(computeMoveIntent(input_), chunkCache_, stepSeconds);
+    const bool sneaking = input_.actionHeld;
+    const double speedMultiplier = sneaking ? constants::sneakSpeedMultiplier : 1.0;
+    player_.update(computeMoveIntent(input_), chunkCache_, stepSeconds, speedMultiplier);
 
     const Vec2& position = player_.position();
     Biome groundBiome = Biome::Grassland;
@@ -248,7 +250,8 @@ void Game::simulateStep(double stepSeconds) {
     const ChunkCoord centre = playerChunk();
     const ChunkRegion wildlifeRegion = ChunkRegion::around(centre, constants::wildlifeSimulationRadiusInChunks,
                                                            constants::wildlifeSimulationRadiusInChunks);
-    wildlife_.update(wildlifeRegion, world_.seed(), chunkCache_, position, stepSeconds);
+    wildlife_.update(wildlifeRegion, world_.seed(), chunkCache_, position, stepSeconds, sneaking);
+    updateScanner(stepSeconds);
 
     // Only re-reveal when the player changes chunk; it's the same squares otherwise.
     if (!hasRevealed_ || centre != lastRevealCentre_) {
@@ -295,6 +298,19 @@ void Game::updateBiomeAnnouncement(Biome groundBiome, double stepSeconds) {
         events_.push_back({GameEventType::JournalChanged, {}});
         requestSave();
     }
+}
+
+void Game::updateScanner(double stepSeconds) {
+    const Vec2& position = player_.position();
+    const bool completed = scanner_.update(input_.actionHeld, position, wildlife_.creatures(), journal_, stepSeconds,
+                                           constants::scanRangeInTiles, constants::scanDurationSeconds);
+    if (!completed) return;
+
+    const Species species = scanner_.completedSpecies();
+    journal_.recordSpecies(species, tileIndexFor(position.x), tileIndexFor(position.y), dayNight_.day());
+    events_.push_back({GameEventType::Discovery, std::string(speciesName(species))});
+    events_.push_back({GameEventType::JournalChanged, {}});
+    requestSave();
 }
 
 void Game::checkLandmarkDiscoveries() {
@@ -368,6 +384,7 @@ void Game::render(double interpolationAlpha) {
     scene.weather = &weather_.state();
     scene.minimap = &minimapView_;
     scene.planet = &planet_;
+    scene.scan = &scanner_.status();
     scene.interpolationAlpha = interpolationAlpha;
     scene.timeSeconds = simulatedSeconds_;
 
