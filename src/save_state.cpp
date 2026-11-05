@@ -18,7 +18,8 @@ constexpr char speciesEntryTag = 'S';
 constexpr char loreEntryTag = 'R';
 
 // Older saves are missing later additions (animals in version 2, samples and used landmarks
-// in version 3), and still load fine with those left empty.
+// in version 3, upgrades and suit power in version 4), and still load fine with those left at
+// their starting values (no upgrades, full power).
 constexpr int oldestReadableVersion = 1;
 
 // Reads "label value..." and checks the label matches.
@@ -64,6 +65,10 @@ std::string serializeSaveState(const SaveState& state) {
     output << "samples " << state.samples << '\n';
     output << "used " << state.usedLandmarks.size() << '\n';
     for (const UsedLandmark& landmark : state.usedLandmarks) output << landmark.tileX << ' ' << landmark.tileY << '\n';
+    output << "upgrades";
+    for (const int level : state.upgrades.levels) output << ' ' << level;
+    output << '\n';
+    output << "power " << state.suitFraction << '\n';
     output << "end\n";
     return output.str();
 }
@@ -142,6 +147,14 @@ std::optional<SaveState> parseSaveState(std::string_view text) {
                 UsedLandmark landmark;
                 if (!(input >> landmark.tileX >> landmark.tileY)) return std::nullopt;
                 state.usedLandmarks.push_back(landmark);
+            }
+        } else if (section == "upgrades") {
+            for (int& level : state.upgrades.levels) {
+                if (!(input >> level) || level < 0 || level > constants::maxUpgradeLevel) return std::nullopt;
+            }
+        } else if (section == "power") {
+            if (!(input >> state.suitFraction) || !(state.suitFraction >= 0.0 && state.suitFraction <= 1.0)) {
+                return std::nullopt;
             }
         } else {
             return std::nullopt;

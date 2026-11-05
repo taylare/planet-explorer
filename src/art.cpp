@@ -155,6 +155,27 @@ SpriteLibrary::SpriteLibrary(const PlanetPalette& palette) {
                                       "wwwwwww"},
                                      fireColors, outlined);
 
+    // --- The lander: a squat capsule on three legs, with a glowing window and an antenna ---
+    ship_ = buildSprite({"......a........",
+                         "......a........",
+                         ".....HHHH......",
+                         "....HHHHHH.....",
+                         "...HHWWWWHH....",
+                         "..HHWWWWWWHH...",
+                         "..HHHHHHHHHH...",
+                         ".hhRRRRRRRRhh..",
+                         ".hhhhhhhhhhhh..",
+                         "..l.hhhhhh.l...",
+                         ".ll........ll..",
+                         ".lll......lll.."},
+                        {{'H', toPacked(shipHullLightColor)},
+                         {'h', toPacked(shipHullDarkColor)},
+                         {'W', toPacked(shipWindowColor)},
+                         {'R', toPacked(shipAccentColor)},
+                         {'l', toPacked(shipLegColor)},
+                         {'a', toPacked(shipLegColor)}},
+                        outlined);
+
     // --- Rare landmarks ---
     tower_ = buildSprite({"S.S.S.S.S",
                           "SSSSSSSSS",

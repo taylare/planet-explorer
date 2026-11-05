@@ -2,7 +2,7 @@
 //
 // Only what the player changed is saved: the seed, where they are, the
 // clock, which chunks they've seen, the journal (biomes, landmarks, animals and story
-// fragments), research samples and which landmarks have been used. The world itself is
+// fragments), research samples, which landmarks have been used, suit upgrades and suit power. The world itself is
 // regenerated from the seed.
 #pragma once
 
@@ -13,6 +13,7 @@
 
 #include "journal.h"
 #include "landmark_actions.h"
+#include "upgrades.h"
 #include "world.h"
 
 namespace wl {
@@ -27,11 +28,14 @@ struct SaveState {
     std::vector<JournalEntry> journal;
     int samples = 0;
     std::vector<UsedLandmark> usedLandmarks;
+    Upgrades upgrades;
+    double suitFraction = 1.0;  // 0 to 1, as a fraction so it stays right if the battery grows
 
     bool operator==(const SaveState& other) const {
         return seed == other.seed && playerTileX == other.playerTileX && playerTileY == other.playerTileY &&
                timeOfDay == other.timeOfDay && day == other.day && revealedChunks == other.revealedChunks &&
-               journal == other.journal && samples == other.samples && usedLandmarks == other.usedLandmarks;
+               journal == other.journal && samples == other.samples && usedLandmarks == other.usedLandmarks &&
+               upgrades == other.upgrades && suitFraction == other.suitFraction;
     }
 };
 

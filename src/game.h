@@ -20,6 +20,8 @@
 #include "renderer.h"
 #include "save_state.h"
 #include "scanner.h"
+#include "suit_power.h"
+#include "upgrades.h"
 #include "weather.h"
 #include "world.h"
 
@@ -56,6 +58,14 @@ public:
     // Hold to walk: pointer position in CSS pixels from the canvas top-left.
     void setFollowPointer(bool active, double cssX, double cssY);
     void releaseAllInput();
+
+    // --- Ship ---
+    // Spend samples on an upgrade. Needs you to be at the ship, enough samples and a level to gain.
+    bool buyUpgrade(UpgradeKind kind);
+    // Only works with an empty suit: moves you to the ship and refills part of the battery.
+    bool beamToShip();
+    // For the ship panel: {"samples":3,"nearShip":true,"power":0.8,"upgrades":[...]}
+    std::string shipJson() const;
     // Hold to scan nearby animals. Also makes the player creep so animals stay calm.
     void setActionHeld(bool held) { input_.actionHeld = held; }
 
@@ -88,6 +98,11 @@ public:
     const Scanner& scanner() const { return scanner_; }
     int surveyPercent() const { return journal_.surveyPercent(); }
     int samples() const { return samples_; }
+    const SuitPower& suitPower() const { return power_; }
+    const Upgrades& upgrades() const { return upgrades_; }
+    bool isNearShip() const { return nearShip_; }
+    Vec2 shipPosition() const;
+    double scanRangeInTiles() const;
     const std::vector<UsedLandmark>& usedLandmarks() const { return usedLandmarks_; }
     const ChunkCache& chunkCache() const { return chunkCache_; }
     const StreamingStats& lastStreamingStats() const { return lastStreamingStats_; }
@@ -113,6 +128,8 @@ private:
     std::vector<ScanLandmark> scannableLandmarksNearPlayer() const;
     bool isLandmarkUsed(int tileX, int tileY) const;
     void applyLandmarkScan(PropKind kind, int tileX, int tileY);
+    RechargeSource rechargeSourceNear(const Vec2& position) const;
+    void updateSuitPower(double stepSeconds, Biome groundBiome, bool groundKnown);
     void rebuildMinimapMarkers();
     void render(double interpolationAlpha);
 
@@ -143,6 +160,11 @@ private:
     Scanner scanner_;
     int samples_ = 0;                         // research samples, spent on upgrades later
     std::vector<UsedLandmark> usedLandmarks_;  // landmarks already scanned
+    Upgrades upgrades_;
+    SuitPower power_;
+    bool nearShip_ = false;
+    bool lowPowerWarned_ = false;
+    bool emptyPowerWarned_ = false;
     MinimapView minimapView_;
 
     // Camera position is simulated (it eases after the player) and

@@ -675,7 +675,7 @@ void Renderer::applyLighting(Framebuffer& framebuffer, const LightingState& ligh
 
         for (const PendingLight& light : lights_) {
             const constants::LightSettings& settings = *light.settings;
-            const int radius = static_cast<int>(settings.radiusInTiles * tileSize);
+            const int radius = static_cast<int>(settings.radiusInTiles * light.radiusScale * tileSize);
             const double radiusSquared = static_cast<double>(radius) * radius;
             // Lights fade in with the dark, so they don't pop on at sunset.
             const float amount = settings.intensity * light.strength * lighting.nightAmount * fixedPointOne;
@@ -893,6 +893,18 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
     collectProps(framebuffer, scene, origin, scale);
     if (scene.creatures) collectCreatures(scene, origin, scale);
 
+    if (scene.hasShip) {
+        const Sprite& shipSprite = sprites_.ship();
+        DrawItem shipItem;
+        shipItem.sprite = &shipSprite;
+        shipItem.footX = worldToScreenX(origin, scene.shipFoot.x);
+        shipItem.footY = worldToScreenY(origin, scene.shipFoot.y);
+        shipItem.scale = scale;
+        drawItems_.push_back(shipItem);
+        // A cabin glow, so the way home is easy to spot after dark.
+        lights_.push_back({shipItem.footX, shipItem.footY - 6 * scale, &constants::shipLight, 1.0f});
+    }
+
     DrawItem playerItem;
     playerItem.sprite = &sprites_.player(scene.player.walkFrame);
     playerItem.footX = worldToScreenX(origin, scene.player.tileX);
@@ -904,7 +916,8 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
 
     const int lampDirection = scene.player.facingLeft ? -1 : 1;
     lights_.push_back({playerItem.footX + lampDirection * SpriteLibrary::lampOffsetX * scale,
-                       playerItem.footY + SpriteLibrary::lampOffsetY * scale, &constants::headlampLight, 1.0f});
+                       playerItem.footY + SpriteLibrary::lampOffsetY * scale, &constants::headlampLight,
+                       scene.headlampStrength, scene.headlampRadiusScale});
 
     // Painter's order: higher on screen is further away, so draw it first.
     // Stable sort with an x tie-break keeps the order steady frame to frame.

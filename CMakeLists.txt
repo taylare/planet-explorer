@@ -39,6 +39,8 @@ add_library(wanderlight_core STATIC
   src/renderer.cpp
   src/save_state.cpp
   src/scanner.cpp
+  src/suit_power.cpp
+  src/upgrades.cpp
   src/sprite.cpp
   src/weather.cpp
   src/world.cpp

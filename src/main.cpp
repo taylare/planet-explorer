@@ -25,6 +25,13 @@ double lastCssHeight = 0.0;
 std::string debugTextBuffer;
 int startingTileSize = wl::constants::defaultTileSizeInPixels;
 std::string journalJsonBuffer;  // kept alive so JS can read it after we return
+std::string shipJsonBuffer;
+
+// What the page was last told about the suit, so it is only told again when something changes.
+// -1 means "not sent yet" (a new world starts there so the page always gets a first update).
+int lastPowerPercent = -1;
+int lastNearShip = -1;
+int lastSuitEmpty = -1;
 }  // namespace
 
 // --- Calls into web/bridge.js ---
@@ -39,6 +46,9 @@ EM_JS(void, jsStoreSave, (const char* text), { Module.wanderlightStoreSave(UTF8T
 // mode: 0 plain (biome name), 1 discovery, 2 landing on a planet, 3 scan result.
 EM_JS(void, jsShowBanner, (const char* text, int mode), { Module.wanderlightBanner(UTF8ToString(text), mode); });
 EM_JS(void, jsJournalChanged, (), { Module.wanderlightJournalChanged(); });
+// Suit power as a whole percent, whether the player is at the ship, and whether the suit is flat.
+EM_JS(void, jsStatusChanged, (int powerPercent, int nearShip, int suitEmpty),
+      { Module.wanderlightStatusChanged(powerPercent, nearShip, suitEmpty); });
 EM_JS(void, jsWorldChanged, (double seed), { Module.wanderlightWorldChanged(seed); });
 EM_JS(void, jsPlanetChanged, (const char* json), { Module.wanderlightPlanetChanged(UTF8ToString(json)); });
 
@@ -77,6 +87,7 @@ static void startWorld(wl::WorldSeed seed, const std::optional<wl::SaveState>& s
     activeGame->setTileSizeInPixels(startingTileSize);
     if (save) activeGame->applySaveState(*save);
     if (lastDeviceWidth > 0) activeGame->resizeDevice(lastDeviceWidth, lastDeviceHeight, lastCssWidth, lastCssHeight);
+    lastPowerPercent = lastNearShip = lastSuitEmpty = -1;
     jsWorldChanged(seed);
     jsPlanetChanged(wl::planetToJson(activeGame->planet()).c_str());
     jsJournalChanged();
@@ -118,6 +129,21 @@ EMSCRIPTEN_KEEPALIVE int wl_survey_percent() { return activeGame ? activeGame->s
 
 // Research samples collected from crystal groves.
 EMSCRIPTEN_KEEPALIVE int wl_samples() { return activeGame ? activeGame->samples() : 0; }
+
+// Spend samples on an upgrade (0 scanner, 1 headlamp, 2 power cell). Returns 1 on success.
+EMSCRIPTEN_KEEPALIVE int wl_buy_upgrade(int kind) {
+    if (!activeGame || kind < 0 || kind >= wl::upgradeKindCount) return 0;
+    return activeGame->buyUpgrade(static_cast<wl::UpgradeKind>(kind)) ? 1 : 0;
+}
+
+// Only works with a flat suit. Returns 1 on success.
+EMSCRIPTEN_KEEPALIVE int wl_beam_to_ship() { return activeGame && activeGame->beamToShip() ? 1 : 0; }
+
+// JSON for the ship panel. The pointer stays valid until the next call.
+EMSCRIPTEN_KEEPALIVE const char* wl_ship_json() {
+    shipJsonBuffer = activeGame ? activeGame->shipJson() : "{}";
+    return shipJsonBuffer.c_str();
+}
 
 // So the joystick graphic matches the distance that gives full speed.
 EMSCRIPTEN_KEEPALIVE double wl_joystick_radius() { return wl::constants::dragFullSpeedInCssPixels; }
@@ -171,6 +197,17 @@ static void runFrame() {
         }
     }
     if (activeGame->takeSaveRequest()) saveNow();
+
+    // Tell the page about the suit only when the numbers it shows have changed.
+    const int powerPercent = static_cast<int>(activeGame->suitPower().fraction() * 100.0);
+    const int nearShip = activeGame->isNearShip() ? 1 : 0;
+    const int suitEmpty = activeGame->suitPower().isEmpty() ? 1 : 0;
+    if (powerPercent != lastPowerPercent || nearShip != lastNearShip || suitEmpty != lastSuitEmpty) {
+        lastPowerPercent = powerPercent;
+        lastNearShip = nearShip;
+        lastSuitEmpty = suitEmpty;
+        jsStatusChanged(powerPercent, nearShip, suitEmpty);
+    }
 }
 
 int main() {

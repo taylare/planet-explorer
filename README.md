@@ -21,6 +21,8 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 - A minimap that only fills in where you've been
 - A field scanner: hold it near an alien animal to log it. Holding it also makes you creep, so animals stay calm long enough to scan
 - Scannable landmarks: towers light a beacon that reveals the map, crystal groves give research samples, and ruins decode a story about the survey crew who came before you
+- Your lander, parked at the start. Suit power drains as you explore (faster at night, on cold ground and in rain or snow) and refills at the ship, a campfire or a hot spring. With a flat suit you slow down and your lamp dims, and you can beam back to the ship
+- Three suit upgrades (scanner, headlamp, power cell) bought at the ship with research samples
 - A journal of the first time you found each biome, landmark and species, with coordinates, and a survey percentage for the whole planet
 - Automatic saving in your browser, shareable seeds and a "new world" button
 
@@ -32,6 +34,7 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 | Walk toward a spot | Hold the mouse button there | Hold a finger on the right half |
 | Scan animals | Hold E | Hold the scan button, bottom left |
 | Journal | J, or the book button | Book button |
+| Ship and upgrades | T, or the rocket button | Rocket button |
 | Change world | Globe button | Globe button |
 
 Shallow water slows you down. Deep ocean is too deep to cross.
@@ -130,7 +133,8 @@ All game logic is plain C++ with no browser code, so the same code runs in the n
 | `src/exploration.*`, `src/journal.*` | Minimap fog of war and discoveries |
 | `src/scanner.*` | The field scanner: target choice, scan progress |
 | `src/landmark_actions.*`, `src/lore.*` | What scanning a landmark does, and the story fragments |
-| `src/save_state.*` | Save format for localStorage (version 3; older saves still load) |
+| `src/suit_power.*`, `src/upgrades.*` | Suit power rules and the three upgrades |
+| `src/save_state.*` | Save format for localStorage (version 4; older saves still load) |
 | `src/renderer.*`, `src/art.*`, `src/sprite.*` | Framebuffer drawing, lighting, minimap and text-defined sprite art |
 | `src/performance.*` | Frame timings and automatic quality steps |
 | `src/game.*` | Ties it all together with a fixed-timestep loop |

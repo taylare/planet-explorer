@@ -252,3 +252,58 @@ TEST_CASE("the scan reticle draws only while there is a target, and fills with p
     REQUIRE(bracketsAndBar > bracketsOnly);
     REQUIRE(countPixelsOfColor(noTarget, constants::scannerColor) == baseline);
 }
+
+TEST_CASE("the lander appears only when the scene has one, at its own position", "[renderer][ship]") {
+    const World world(4);
+    MapChunkSource source;
+    fillAroundOrigin(source, world);
+    Renderer renderer;
+
+    const auto draw = [&](bool hasShip, double shipX) {
+        Framebuffer framebuffer;
+        framebuffer.resize(160, 160);
+        SceneView scene = sceneAt(source, 0.5);
+        scene.hasShip = hasShip;
+        scene.shipFoot = {shipX, 4.0};
+        renderer.drawFrame(framebuffer, scene);
+        return framebuffer;
+    };
+    const auto countDifferences = [](const Framebuffer& a, const Framebuffer& b) {
+        int differences = 0;
+        for (int index = 0; index < a.width() * a.height(); ++index) {
+            if (a.pixels()[index] != b.pixels()[index]) ++differences;
+        }
+        return differences;
+    };
+
+    const Framebuffer noShip = draw(false, 2.0);
+    const Framebuffer shipNear = draw(true, 2.0);
+    const Framebuffer shipElsewhere = draw(true, -2.0);
+    // The sprite is 15 by 12 pixels plus an outline, so it changes a good number of pixels.
+    REQUIRE(countDifferences(noShip, shipNear) > 60);
+    REQUIRE(countDifferences(shipNear, shipElsewhere) > 60);
+}
+
+TEST_CASE("a weaker headlamp lights less, and a wider one lights more", "[renderer][power]") {
+    const World world(4);
+    MapChunkSource source;
+    fillAroundOrigin(source, world);
+
+    const auto litBrightness = [&](float strength, float radiusScale) {
+        Renderer renderer;
+        Framebuffer framebuffer;
+        framebuffer.resize(160, 160);
+        SceneView scene = sceneAt(source, 0.0);
+        scene.headlampStrength = strength;
+        scene.headlampRadiusScale = radiusScale;
+        renderer.drawFrame(framebuffer, scene);
+        // A ring of ground a little way from the player, at the edge of the base lamp pool.
+        return averageBrightness(framebuffer, 80 + 30, 80 - 8, 16);
+    };
+
+    const double normal = litBrightness(1.0f, 1.0f);
+    const double dim = litBrightness(constants::emptyHeadlampStrength, 1.0f);
+    const double wide = litBrightness(1.0f, 1.75f);
+    REQUIRE(dim < normal);
+    REQUIRE(wide > normal);
+}

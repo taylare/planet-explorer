@@ -269,4 +269,39 @@ void World::findSpawnTile(int& spawnTileX, int& spawnTileY) const {
     spawnTileY = 0;
 }
 
+void World::spawnTile(int& spawnTileX, int& spawnTileY) const {
+    if (!hasSpawnTile_) {
+        findSpawnTile(cachedSpawnTileX_, cachedSpawnTileY_);
+        hasSpawnTile_ = true;
+    }
+    spawnTileX = cachedSpawnTileX_;
+    spawnTileY = cachedSpawnTileY_;
+}
+
+void World::shipFoot(double& tileX, double& tileY) const {
+    if (!hasShipFoot_) {
+        int spawnTileX = 0;
+        int spawnTileY = 0;
+        spawnTile(spawnTileX, spawnTileY);
+
+        // Prefer a spot to the right of the spawn, then to the left, and only fall back to the
+        // spawn tile itself (which is known to be pleasant ground) if both are water or beach.
+        const auto isDryLand = [this](int x, int y) {
+            const Biome biome = sampleTerrain(x, y).biome;
+            return biome != Biome::DeepOcean && biome != Biome::ShallowWater && biome != Biome::Beach;
+        };
+        int shipTileX = spawnTileX;
+        if (isDryLand(spawnTileX + constants::shipSideOffsetInTiles, spawnTileY)) {
+            shipTileX = spawnTileX + constants::shipSideOffsetInTiles;
+        } else if (isDryLand(spawnTileX - constants::shipSideOffsetInTiles, spawnTileY)) {
+            shipTileX = spawnTileX - constants::shipSideOffsetInTiles;
+        }
+        cachedShipFootX_ = shipTileX + 0.5;
+        cachedShipFootY_ = spawnTileY + 0.5;
+        hasShipFoot_ = true;
+    }
+    tileX = cachedShipFootX_;
+    tileY = cachedShipFootY_;
+}
+
 }  // namespace wl

@@ -169,6 +169,12 @@ public:
     // First land tile found spiralling out from the origin, so you don't spawn at sea.
     void findSpawnTile(int& spawnTileX, int& spawnTileY) const;
 
+    // The same answer as findSpawnTile, but searched for once and remembered.
+    void spawnTile(int& spawnTileX, int& spawnTileY) const;
+
+    // Where the lander's feet are: beside the spawn tile, on dry land. Also cached.
+    void shipFoot(double& tileX, double& tileY) const;
+
 private:
     struct WarpedPosition {
         double x, y;
@@ -180,6 +186,12 @@ private:
                             double elevation) const;
 
     WorldSeed seed_;
+    mutable bool hasSpawnTile_ = false;
+    mutable int cachedSpawnTileX_ = 0;
+    mutable int cachedSpawnTileY_ = 0;
+    mutable bool hasShipFoot_ = false;
+    mutable double cachedShipFootX_ = 0.0;
+    mutable double cachedShipFootY_ = 0.0;
     FractalNoise elevationNoise_;
     FractalNoise warpNoiseX_;
     FractalNoise warpNoiseY_;

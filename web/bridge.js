@@ -37,6 +37,18 @@ Module.wanderlightBanner = function (text, mode) {
 Module.wanderlightJournalChanged = function () {
   wanderlightCallUi('setJournal', JSON.parse(UTF8ToString(Module._wl_journal_json())));
   wanderlightCallUi('setSurvey', Module._wl_survey_percent(), Module._wl_samples());
+  wanderlightRefreshShip();
+};
+
+// Reads the ship panel's JSON from C++ and hands it to the page.
+function wanderlightRefreshShip() {
+  wanderlightCallUi('setShip', JSON.parse(UTF8ToString(Module._wl_ship_json())));
+}
+
+// Suit power as a whole percent, plus whether the player is at the ship and whether the suit is flat.
+Module.wanderlightStatusChanged = function (powerPercent, nearShip, suitEmpty) {
+  wanderlightCallUi('setSuit', powerPercent, nearShip !== 0, suitEmpty !== 0);
+  wanderlightRefreshShip();
 };
 
 Module.wanderlightWorldChanged = function (seed) {

@@ -145,6 +145,18 @@ std::optional<Prop> findRegionLandmark(const World& world, int regionX, int regi
         const Biome biome = world.sampleTerrain(tileX, tileY).biome;
         if (!landmarkSuits(kind, biome)) continue;
 
+        // Never plant a landmark where the ship sits. Skipping it here keeps the minimap,
+        // which asks this function directly, in step with what chunks actually contain.
+        double shipTileX = 0.0;
+        double shipTileY = 0.0;
+        world.shipFoot(shipTileX, shipTileY);
+        const double shipDeltaX = tileX + 0.5 - shipTileX;
+        const double shipDeltaY = tileY + 0.5 - shipTileY;
+        if (shipDeltaX * shipDeltaX + shipDeltaY * shipDeltaY <
+            constants::shipClearingRadiusInTiles * constants::shipClearingRadiusInTiles) {
+            continue;
+        }
+
         Prop landmark;
         landmark.tileX = static_cast<float>(tileX) + 0.5f;
         landmark.tileY = static_cast<float>(tileY) + 0.5f;
@@ -185,7 +197,17 @@ void scatterProps(const World& world, Chunk& chunk) {
         }
     }
 
-    const auto insideClearing = [&nearbyLandmarks](double tileX, double tileY) {
+    double shipTileX = 0.0;
+    double shipTileY = 0.0;
+    world.shipFoot(shipTileX, shipTileY);
+
+    const auto insideClearing = [&nearbyLandmarks, shipTileX, shipTileY](double tileX, double tileY) {
+        const double shipDeltaX = tileX - shipTileX;
+        const double shipDeltaY = tileY - shipTileY;
+        if (shipDeltaX * shipDeltaX + shipDeltaY * shipDeltaY <
+            shipClearingRadiusInTiles * shipClearingRadiusInTiles) {
+            return true;
+        }
         for (const Prop& landmark : nearbyLandmarks) {
             const double deltaX = tileX - landmark.tileX;
             const double deltaY = tileY - landmark.tileY;

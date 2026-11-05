@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iomanip>
 #include <limits>
+#include <sstream>
 
 #include "constants.h"
 
@@ -47,7 +49,7 @@ Game::Game(WorldSeed seed)
       weather_(seed) {
     int spawnTileX = 0;
     int spawnTileY = 0;
-    world_.findSpawnTile(spawnTileX, spawnTileY);
+    world_.spawnTile(spawnTileX, spawnTileY);
     player_.placeAt(spawnTileX + tileCentreOffset, spawnTileY + tileCentreOffset);
     cameraPosition_ = player_.position();
     previousCameraPosition_ = cameraPosition_;
@@ -129,6 +131,8 @@ SaveState Game::makeSaveState() const {
     state.journal = journal_.entries();
     state.samples = samples_;
     state.usedLandmarks = usedLandmarks_;
+    state.upgrades = upgrades_;
+    state.suitFraction = power_.fraction();
     return state;
 }
 
@@ -144,6 +148,11 @@ bool Game::applySaveState(const SaveState& state) {
     journal_.restore(state.journal);
     samples_ = state.samples;
     usedLandmarks_ = state.usedLandmarks;
+    upgrades_ = state.upgrades;
+    power_.setCapacity(suitCapacityAt(upgrades_.level(UpgradeKind::PowerCell)));
+    power_.setFraction(state.suitFraction);
+    lowPowerWarned_ = power_.isLow();
+    emptyPowerWarned_ = power_.isEmpty();
     scanner_.reset();
 
     // Fresh start for things tied to the old position.
@@ -242,7 +251,7 @@ void Game::simulateStep(double stepSeconds) {
     dayNight_.advance(stepSeconds / planet_.dayLengthScale);
     updateFollowOffset();  // the player moved, so the held point's direction changed
     const bool sneaking = input_.actionHeld;
-    const double speedMultiplier = sneaking ? constants::sneakSpeedMultiplier : 1.0;
+    const double speedMultiplier = (sneaking ? constants::sneakSpeedMultiplier : 1.0) * power_.speedMultiplier();
     player_.update(computeMoveIntent(input_), chunkCache_, stepSeconds, speedMultiplier);
 
     const Vec2& position = player_.position();
@@ -257,6 +266,7 @@ void Game::simulateStep(double stepSeconds) {
                                                            constants::wildlifeSimulationRadiusInChunks);
     wildlife_.update(wildlifeRegion, world_.seed(), chunkCache_, position, stepSeconds, sneaking);
     updateScanner(stepSeconds);
+    updateSuitPower(stepSeconds, groundBiome, groundKnown);
 
     // Only re-reveal when the player changes chunk; it's the same squares otherwise.
     if (!hasRevealed_ || centre != lastRevealCentre_) {
@@ -332,9 +342,12 @@ void Game::updateScanner(double stepSeconds) {
     const Vec2& position = player_.position();
     const std::vector<ScanLandmark> landmarks =
         input_.actionHeld ? scannableLandmarksNearPlayer() : std::vector<ScanLandmark>{};
+    const int scannerLevel = upgrades_.level(UpgradeKind::Scanner);
+    const double durationScale = scannerDurationScale(scannerLevel);
     const bool completed = scanner_.update(input_.actionHeld, position, wildlife_.creatures(), landmarks, journal_,
-                                           stepSeconds, constants::scanRangeInTiles, constants::scanDurationSeconds,
-                                           constants::landmarkScanDurationSeconds);
+                                           stepSeconds, scanRangeInTiles(),
+                                           constants::scanDurationSeconds * durationScale,
+                                           constants::landmarkScanDurationSeconds * durationScale);
     if (!completed) return;
 
     if (scanner_.completedKind() == ScanTargetKind::Landmark) {
@@ -368,6 +381,140 @@ void Game::applyLandmarkScan(PropKind kind, int tileX, int tileY) {
     }
     usedLandmarks_.push_back({tileX, tileY});
     events_.push_back({GameEventType::Notice, landmarkNoticeText(kind, result)});
+}
+
+double Game::scanRangeInTiles() const {
+    return wl::scannerRangeInTiles(upgrades_.level(UpgradeKind::Scanner));
+}
+
+Vec2 Game::shipPosition() const {
+    double footX = 0.0;
+    double footY = 0.0;
+    world_.shipFoot(footX, footY);
+    return {footX, footY};
+}
+
+// The best place to recharge within reach, if any. The ship beats a hot spring beats a campfire.
+RechargeSource Game::rechargeSourceNear(const Vec2& position) const {
+    const Vec2 ship = shipPosition();
+    const double shipDeltaX = ship.x - position.x;
+    const double shipDeltaY = ship.y - position.y;
+    const double shipRadius = constants::shipInteractRadiusInTiles;
+    if (shipDeltaX * shipDeltaX + shipDeltaY * shipDeltaY <= shipRadius * shipRadius) return RechargeSource::Ship;
+
+    RechargeSource best = RechargeSource::None;
+    const ChunkCoord centre = playerChunk();
+    for (int chunkY = centre.y - 1; chunkY <= centre.y + 1; ++chunkY) {
+        for (int chunkX = centre.x - 1; chunkX <= centre.x + 1; ++chunkX) {
+            const Chunk* chunk = chunkCache_.findChunk({chunkX, chunkY});
+            if (!chunk) continue;
+            for (const Prop& prop : chunk->props) {
+                const bool isFire = prop.kind == PropKind::Campfire;
+                const bool isSpring = prop.kind == PropKind::HotSpring;
+                if (!isFire && !isSpring) continue;
+                const double radius = isSpring ? constants::hotSpringRechargeRadiusInTiles
+                                               : constants::campfireRechargeRadiusInTiles;
+                const double deltaX = prop.tileX - position.x;
+                const double deltaY = prop.tileY - position.y;
+                if (deltaX * deltaX + deltaY * deltaY > radius * radius) continue;
+                const RechargeSource found = isSpring ? RechargeSource::HotSpring : RechargeSource::Campfire;
+                if (suitRechargePerSecond(found) > suitRechargePerSecond(best)) best = found;
+            }
+        }
+    }
+    return best;
+}
+
+void Game::updateSuitPower(double stepSeconds, Biome groundBiome, bool groundKnown) {
+    const Vec2& position = player_.position();
+    const RechargeSource source = rechargeSourceNear(position);
+    nearShip_ = source == RechargeSource::Ship;
+
+    PowerConditions conditions;
+    conditions.nightAmount = dayNight_.lighting().nightAmount;
+    conditions.onColdGround = groundKnown && (groundBiome == Biome::Snow || groundBiome == Biome::Tundra);
+    conditions.precipitationIntensity = weather_.state().intensity;
+    power_.update(stepSeconds, conditions, source);
+
+    // Warn once on the way down, and re-arm once the suit has recovered.
+    if (power_.isEmpty() && !emptyPowerWarned_) {
+        emptyPowerWarned_ = true;
+        events_.push_back({GameEventType::Notice, "Suit power empty. Beam back to the ship"});
+        events_.push_back({GameEventType::JournalChanged, {}});
+    } else if (!power_.isEmpty()) {
+        emptyPowerWarned_ = false;
+    }
+    if (power_.isLow() && !lowPowerWarned_) {
+        lowPowerWarned_ = true;
+        if (!power_.isEmpty()) events_.push_back({GameEventType::Notice, "Suit power low"});
+    } else if (!power_.isLow()) {
+        lowPowerWarned_ = false;
+    }
+}
+
+bool Game::buyUpgrade(UpgradeKind kind) {
+    if (!nearShip_ || upgrades_.isMaxed(kind)) return false;
+    const int cost = upgrades_.nextCost(kind);
+    if (cost < 0 || samples_ < cost) return false;
+
+    samples_ -= cost;
+    upgrades_.raise(kind);
+    if (kind == UpgradeKind::PowerCell) power_.setCapacity(suitCapacityAt(upgrades_.level(kind)));
+
+    events_.push_back({GameEventType::Notice, std::string(upgradeName(kind)) + " upgraded to level " +
+                                                  std::to_string(upgrades_.level(kind))});
+    events_.push_back({GameEventType::JournalChanged, {}});
+    requestSave();
+    return true;
+}
+
+bool Game::beamToShip() {
+    if (!power_.isEmpty()) return false;
+
+    // The spawn tile is known good ground and sits within reach of the ship.
+    int spawnTileX = 0;
+    int spawnTileY = 0;
+    world_.spawnTile(spawnTileX, spawnTileY);
+    player_.placeAt(spawnTileX + tileCentreOffset, spawnTileY + tileCentreOffset);
+    cameraPosition_ = player_.position();
+    previousCameraPosition_ = cameraPosition_;
+
+    // Same fresh start as loading a save: nothing should remember the old position.
+    wildlife_.clear();
+    trails_.clear();
+    scanner_.reset();
+    hasRevealed_ = false;
+    hasAnnouncedBiome_ = false;
+    candidateSeconds_ = 0.0;
+
+    power_.refillTo(constants::beamRechargeFraction);
+    emptyPowerWarned_ = false;
+    lowPowerWarned_ = power_.isLow();
+    nearShip_ = true;
+
+    events_.push_back({GameEventType::Notice, "Beamed to the ship"});
+    events_.push_back({GameEventType::JournalChanged, {}});
+    requestSave();
+    return true;
+}
+
+std::string Game::shipJson() const {
+    // Everything here is a number, a bool or fixed ASCII text without quotes, so no escaping is needed.
+    std::ostringstream json;
+    json << "{\"samples\":" << samples_ << ",\"nearShip\":" << (nearShip_ ? "true" : "false")
+         << ",\"power\":" << std::fixed << std::setprecision(3) << power_.fraction()
+         << ",\"empty\":" << (power_.isEmpty() ? "true" : "false") << ",\"upgrades\":[";
+    for (int index = 0; index < upgradeKindCount; ++index) {
+        const UpgradeKind kind = static_cast<UpgradeKind>(index);
+        const int cost = upgrades_.nextCost(kind);
+        const bool canBuy = nearShip_ && cost >= 0 && samples_ >= cost;
+        if (index > 0) json << ',';
+        json << "{\"name\":\"" << upgradeName(kind) << "\",\"description\":\"" << upgradeDescription(kind)
+             << "\",\"level\":" << upgrades_.level(kind) << ",\"max\":" << constants::maxUpgradeLevel
+             << ",\"cost\":" << cost << ",\"canBuy\":" << (canBuy ? "true" : "false") << '}';
+    }
+    json << "]}";
+    return json.str();
 }
 
 void Game::checkLandmarkDiscoveries() {
@@ -442,6 +589,10 @@ void Game::render(double interpolationAlpha) {
     scene.minimap = &minimapView_;
     scene.planet = &planet_;
     scene.scan = &scanner_.status();
+    scene.hasShip = true;
+    scene.shipFoot = shipPosition();
+    scene.headlampStrength = power_.headlampStrength();
+    scene.headlampRadiusScale = static_cast<float>(headlampRadiusScale(upgrades_.level(UpgradeKind::Headlamp)));
     scene.interpolationAlpha = interpolationAlpha;
     scene.timeSeconds = simulatedSeconds_;
 

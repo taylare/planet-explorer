@@ -22,6 +22,7 @@ public:
     const Sprite& player(int walkFrame) const;
     const Sprite& prop(const Prop& prop, int animationFrame) const;
     const Sprite& creature(Species species) const;
+    const Sprite& ship() const { return ship_; }
 
     // Flat things drawn under everything else, centred on their anchor.
     static bool isGroundDecal(PropKind kind);
@@ -51,6 +52,7 @@ private:
     Sprite tower_;
     Sprite crystalGrove_;
     Sprite hotSpring_;
+    Sprite ship_;
     std::array<Sprite, speciesCount> creatures_;
 };
 

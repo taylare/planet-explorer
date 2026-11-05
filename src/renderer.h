@@ -78,6 +78,14 @@ struct SceneView {
     const TrailEffects* trails = nullptr;
     const WeatherState* weather = nullptr;
     const MinimapView* minimap = nullptr;
+    // The lander, drawn where it landed. Off by default so tests without one stay simple.
+    bool hasShip = false;
+    Vec2 shipFoot;
+
+    // Suit power and upgrades change the headlamp: dimmer when the suit is low, wider when upgraded.
+    float headlampStrength = 1.0f;
+    float headlampRadiusScale = 1.0f;
+
     const ScanStatus* scan = nullptr;       // reticle while scanning; null draws none
     const PlanetProfile* planet = nullptr;  // palette, moons and aurora; null draws the default look
     double interpolationAlpha = 1.0;
@@ -116,7 +124,8 @@ private:
         int x = 0;
         int y = 0;
         const constants::LightSettings* settings = nullptr;
-        float strength = 1.0f;  // multiplied into the settings' intensity
+        float strength = 1.0f;     // multiplied into the settings' intensity
+        float radiusScale = 1.0f;  // multiplied into the settings' radius
     };
 
     struct LitRect {

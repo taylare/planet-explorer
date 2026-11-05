@@ -574,10 +574,60 @@ inline constexpr Rgb8 scannerColor{120, 235, 255};
 inline constexpr Rgb8 scannerLoggedColor{160, 170, 190};
 inline constexpr Rgb8 scannerTrackColor{24, 34, 56};
 
+// --- Ship and suit power ---
+
+// The lander touches down on the spawn tile. Props keep this far away from it so it has room.
+inline constexpr double shipClearingRadiusInTiles = 4.5;
+
+// How far the ship is placed from the spawn tile, sideways, when the ground there is land.
+inline constexpr int shipSideOffsetInTiles = 2;
+
+// Close enough to use the ship: recharge, buy upgrades, and get beamed back.
+inline constexpr double shipInteractRadiusInTiles = 3.5;
+
+// Suit power is measured in "units" that drain every second you are out in the field.
+inline constexpr double suitBaseCapacity = 300.0;
+inline constexpr double suitBaseDrainPerSecond = 1.0;
+
+// Extra drain on top of the base, from conditions.
+inline constexpr double suitNightExtraDrain = 0.5;    // scaled by how dark it is
+inline constexpr double suitColdExtraDrain = 0.6;     // standing on snow or tundra
+inline constexpr double suitWeatherExtraDrain = 0.5;  // scaled by rain or snow intensity
+
+// Units gained per second while resting somewhere that recharges the suit.
+inline constexpr double shipRechargePerSecond = 60.0;
+inline constexpr double hotSpringRechargePerSecond = 25.0;
+inline constexpr double campfireRechargePerSecond = 15.0;
+inline constexpr double hotSpringRechargeRadiusInTiles = 3.5;
+inline constexpr double campfireRechargeRadiusInTiles = 3.0;
+
+// A flat suit is slow and its lamp is nearly out. The lamp starts dimming below lowPowerFraction.
+inline constexpr double emptySuitSpeedMultiplier = 0.55;
+inline constexpr float emptyHeadlampStrength = 0.25f;
+inline constexpr double lowPowerFraction = 0.2;
+
+// "Beam to ship" is only offered with an empty suit, and tops it up this far.
+inline constexpr double beamRechargeFraction = 0.5;
+
+// Spending research samples at the ship. Levels run 0 to maxUpgradeLevel.
+inline constexpr int maxUpgradeLevel = 3;
+inline constexpr int upgradeCostByLevel[maxUpgradeLevel] = {3, 6, 10};  // cost of 0 to 1, 1 to 2, 2 to 3
+inline constexpr double scannerRangePerLevel = 0.15;    // fraction of base range gained per level
+inline constexpr double scannerSpeedPerLevel = 0.2;     // fraction of scan time saved per level
+inline constexpr double headlampRadiusPerLevel = 0.25;  // fraction of base lamp radius gained per level
+inline constexpr double powerCellCapacityPerLevel = 0.5;
+
+inline constexpr Rgb8 shipHullLightColor{206, 212, 228};
+inline constexpr Rgb8 shipHullDarkColor{130, 138, 168};
+inline constexpr Rgb8 shipWindowColor{120, 224, 255};
+inline constexpr Rgb8 shipAccentColor{232, 120, 72};
+inline constexpr Rgb8 shipLegColor{84, 92, 116};
+inline constexpr LightSettings shipLight{3.5, 0.5f, 0.9f, 1.0f, 0.8f};
+
 // --- Saving ---
 
 inline constexpr double autosaveIntervalSeconds = 10.0;
-inline constexpr int saveFormatVersion = 3;
+inline constexpr int saveFormatVersion = 4;
 
 // Sanity limit when loading, so a corrupt save can't ask for billions of entries.
 inline constexpr int maxSavedEntries = 4000000;
