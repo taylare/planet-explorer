@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "constants.h"
+
 namespace wl {
 
 using PackedColor = std::uint32_t;
@@ -25,8 +27,9 @@ struct FramebufferLayout {
 };
 
 // Integer scale keeps every pixel the same size. Rounds up so we always
-// cover the whole canvas.
-FramebufferLayout computeFramebufferLayout(int deviceWidthInPixels, int deviceHeightInPixels);
+// cover the whole canvas. The target long edge drops at lower quality levels.
+FramebufferLayout computeFramebufferLayout(int deviceWidthInPixels, int deviceHeightInPixels,
+                                           int targetLongEdgeInPixels = constants::targetFramebufferLongEdgeInPixels);
 
 class Framebuffer {
 public:

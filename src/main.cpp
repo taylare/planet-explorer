@@ -20,6 +20,9 @@ std::unique_ptr<wl::Game> activeGame;
 double lastFrameTimeMs = 0.0;
 int lastDeviceWidth = 0;
 int lastDeviceHeight = 0;
+double lastCssWidth = 0.0;
+double lastCssHeight = 0.0;
+std::string debugTextBuffer;
 int startingTileSize = wl::constants::defaultTileSizeInPixels;
 std::string journalJsonBuffer;  // kept alive so JS can read it after we return
 }  // namespace
@@ -72,17 +75,20 @@ static void startWorld(wl::WorldSeed seed, const std::optional<wl::SaveState>& s
     activeGame = std::make_unique<wl::Game>(seed);
     activeGame->setTileSizeInPixels(startingTileSize);
     if (save) activeGame->applySaveState(*save);
-    if (lastDeviceWidth > 0) activeGame->resizeDevice(lastDeviceWidth, lastDeviceHeight);
+    if (lastDeviceWidth > 0) activeGame->resizeDevice(lastDeviceWidth, lastDeviceHeight, lastCssWidth, lastCssHeight);
     jsWorldChanged(seed);
     jsJournalChanged();
 }
 
 extern "C" {
 
-EMSCRIPTEN_KEEPALIVE void wl_resize(int deviceWidthInPixels, int deviceHeightInPixels) {
+EMSCRIPTEN_KEEPALIVE void wl_resize(int deviceWidthInPixels, int deviceHeightInPixels, double cssWidth,
+                                    double cssHeight) {
     lastDeviceWidth = deviceWidthInPixels;
     lastDeviceHeight = deviceHeightInPixels;
-    if (activeGame) activeGame->resizeDevice(deviceWidthInPixels, deviceHeightInPixels);
+    lastCssWidth = cssWidth;
+    lastCssHeight = cssHeight;
+    if (activeGame) activeGame->resizeDevice(deviceWidthInPixels, deviceHeightInPixels, cssWidth, cssHeight);
 }
 
 // direction: 0 up, 1 down, 2 left, 3 right (matches wl::Direction).
@@ -93,6 +99,20 @@ EMSCRIPTEN_KEEPALIVE void wl_set_direction(int direction, int held) {
 
 EMSCRIPTEN_KEEPALIVE void wl_set_drag(int active, double offsetX, double offsetY) {
     if (activeGame) activeGame->setDrag(active != 0, offsetX, offsetY);
+}
+
+// Hold to walk: pointer position in CSS pixels from the canvas top-left.
+EMSCRIPTEN_KEEPALIVE void wl_set_follow(int active, double cssX, double cssY) {
+    if (activeGame) activeGame->setFollowPointer(active != 0, cssX, cssY);
+}
+
+// So the joystick graphic matches the distance that gives full speed.
+EMSCRIPTEN_KEEPALIVE double wl_joystick_radius() { return wl::constants::dragFullSpeedInCssPixels; }
+
+// One line for the ?debug=1 overlay. The pointer stays valid until the next call.
+EMSCRIPTEN_KEEPALIVE const char* wl_debug_text() {
+    debugTextBuffer = activeGame ? activeGame->debugText() : "";
+    return debugTextBuffer.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE void wl_release_input() {

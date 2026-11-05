@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 
 #include "constants.h"
@@ -53,12 +54,22 @@ Game::Game(WorldSeed seed)
     resizeDevice(constants::defaultDeviceWidthInPixels, constants::defaultDeviceHeightInPixels);
 }
 
-void Game::resizeDevice(int deviceWidthInPixels, int deviceHeightInPixels) {
-    layout_ = computeFramebufferLayout(deviceWidthInPixels, deviceHeightInPixels);
-    framebuffer_.resize(layout_.widthInPixels, layout_.heightInPixels);
+void Game::resizeDevice(int deviceWidthInPixels, int deviceHeightInPixels, double cssWidth, double cssHeight) {
+    deviceWidth_ = std::max(deviceWidthInPixels, 1);
+    deviceHeight_ = std::max(deviceHeightInPixels, 1);
+    // Without a CSS size (native tests), treat device and CSS pixels as equal.
+    cssPixelsPerDevicePixel_ = cssWidth > 0.0 ? cssWidth / deviceWidth_ : 1.0;
+    (void)cssHeight;  // the ratio is the same on both axes
+    applyLayout();
     // Before the first frame, load everything so the opening view is complete.
     // Later resizes (rotating a phone) stream in normally within the budget.
     if (!hasRenderedFrame_) streamChunks(unlimitedBudgetMs);
+}
+
+void Game::applyLayout() {
+    const int targetLongEdge = constants::qualityLongEdges[governor_.level()];
+    layout_ = computeFramebufferLayout(deviceWidth_, deviceHeight_, targetLongEdge);
+    framebuffer_.resize(layout_.widthInPixels, layout_.heightInPixels);
 }
 
 void Game::setTileSizeInPixels(int tileSizeInPixels) {
@@ -77,7 +88,33 @@ void Game::setDrag(bool active, double offsetXInCssPixels, double offsetYInCssPi
     input_.dragOffsetY = active ? offsetYInCssPixels : 0.0;
 }
 
+void Game::setFollowPointer(bool active, double cssX, double cssY) {
+    input_.followActive = active;
+    input_.followPointerX = cssX;
+    input_.followPointerY = cssY;
+    updateFollowOffset();
+}
+
 void Game::releaseAllInput() { input_ = InputState{}; }
+
+void Game::updateFollowOffset() {
+    if (!input_.followActive) return;
+    // Where the player is on screen, in CSS pixels, using the same camera
+    // maths as the renderer. Aim from the body rather than the feet.
+    Camera camera;
+    camera.centerTileX = cameraPosition_.x;
+    camera.centerTileY = cameraPosition_.y;
+    camera.tileSizeInPixels = tileSizeInPixels_;
+    const ScreenOrigin origin = screenOriginFor(camera, framebuffer_.width(), framebuffer_.height());
+    const int spriteScale = std::max(1, tileSizeInPixels_ / constants::spriteBaseTileSizeInPixels);
+    const int bodyRaise = (constants::spriteBaseTileSizeInPixels / 2) * spriteScale;
+
+    const double cssPerFramebufferPixel = layout_.pixelScale * cssPixelsPerDevicePixel_;
+    const double playerCssX = worldToScreenX(origin, player_.position().x) * cssPerFramebufferPixel;
+    const double playerCssY = (worldToScreenY(origin, player_.position().y) - bodyRaise) * cssPerFramebufferPixel;
+    input_.followOffsetX = input_.followPointerX - playerCssX;
+    input_.followOffsetY = input_.followPointerY - playerCssY;
+}
 
 SaveState Game::makeSaveState() const {
     SaveState state;
@@ -149,20 +186,53 @@ void Game::streamChunks(double budgetMs) {
 }
 
 void Game::advanceFrame(double realDeltaSeconds) {
+    // Apply a quality change from last frame now, before drawing. Doing it
+    // straight after rendering would hand the page a freshly cleared, black buffer.
+    if (layoutChangePending_) {
+        applyLayout();
+        layoutChangePending_ = false;
+    }
+    const double frameStartMs = nowMilliseconds();
     const int stepsToRun = clock_.consumeElapsedTime(realDeltaSeconds);
     for (int stepIndex = 0; stepIndex < stepsToRun; ++stepIndex) {
         simulateStep(clock_.stepSeconds());
     }
+    const double simulationDoneMs = nowMilliseconds();
+
     streamChunks(constants::chunkGenerationBudgetMs);
     exploration_.buildSummaries(world_, chunkCache_, constants::minimapSummariesPerFrame);
     rebuildMinimapMarkers();
+    const double streamingDoneMs = nowMilliseconds();
+
     render(clock_.interpolationAlpha());
+    const double renderDoneMs = nowMilliseconds();
     hasRenderedFrame_ = true;
+
+    profiler_.record(simulationDoneMs - frameStartMs, streamingDoneMs - simulationDoneMs,
+                     renderDoneMs - streamingDoneMs);
+
+    // Chunk streaming is already capped by its own budget, so judge quality
+    // on simulation and rendering, which is what the pixel count affects.
+    const FrameTimings& timings = profiler_.smoothed();
+    if (governor_.update(timings.simulationMs + timings.renderMs)) layoutChangePending_ = true;
+}
+
+std::string Game::debugText() const {
+    const FrameTimings& timings = profiler_.smoothed();
+    const Vec2& position = player_.position();
+    char text[256];
+    std::snprintf(text, sizeof(text),
+                  "work %.1f ms (sim %.1f, stream %.1f, draw %.1f) | %dx%d q%d | chunks %zu (+%d) | at %d, %d",
+                  timings.totalMs(), timings.simulationMs, timings.streamingMs, timings.renderMs,
+                  framebuffer_.width(), framebuffer_.height(), governor_.level(), chunkCache_.size(),
+                  lastStreamingStats_.chunksPending, tileIndexFor(position.x), tileIndexFor(position.y));
+    return text;
 }
 
 void Game::simulateStep(double stepSeconds) {
     simulatedSeconds_ += stepSeconds;
     dayNight_.advance(stepSeconds);
+    updateFollowOffset();  // the player moved, so the held point's direction changed
     player_.update(computeMoveIntent(input_), chunkCache_, stepSeconds);
 
     const Vec2& position = player_.position();

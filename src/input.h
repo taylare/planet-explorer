@@ -11,9 +11,19 @@ inline constexpr int directionCount = 4;
 
 struct InputState {
     std::array<bool, directionCount> directionHeld{};
+
+    // Virtual joystick: offset of the thumb from where it first pressed.
     bool dragActive = false;
-    double dragOffsetX = 0.0;  // CSS pixels from where the drag started
+    double dragOffsetX = 0.0;  // CSS pixels
     double dragOffsetY = 0.0;
+
+    // Hold to walk: the held point relative to the player on screen.
+    // The game fills the offset in each step, since the player moves.
+    bool followActive = false;
+    double followPointerX = 0.0;  // CSS pixels from the canvas top-left
+    double followPointerY = 0.0;
+    double followOffsetX = 0.0;   // CSS pixels from the player to the pointer
+    double followOffsetY = 0.0;
 };
 
 // Length is 0 to 1. Partial lengths come from short drags.
@@ -22,7 +32,7 @@ struct MoveIntent {
     double y = 0.0;
 };
 
-// Keys win over dragging if both are in use.
+// Priority when several are in use: keys, then joystick, then hold to walk.
 MoveIntent computeMoveIntent(const InputState& input);
 
 }  // namespace wl

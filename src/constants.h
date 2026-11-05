@@ -26,6 +26,27 @@ inline constexpr int targetFramebufferLongEdgeInPixels = 640;
 // Floor for either framebuffer edge, so tiny windows still work.
 inline constexpr int minFramebufferEdgeInPixels = 64;
 
+// --- Performance ---
+
+// Framebuffer long edge for each quality level. If frames run slow, the game
+// steps down a level, which cuts the pixel count by about a third each time.
+// Level 0 must match targetFramebufferLongEdgeInPixels.
+inline constexpr int qualityLongEdges[] = {640, 520, 420};
+inline constexpr int qualityLevelCount = 3;
+
+// Step down a level when the smoothed C++ work per frame stays above this
+// for this many frames in a row. 11 ms leaves room in a 16.7 ms frame for
+// the browser's own blit and compositing.
+inline constexpr double qualityDowngradeMs = 11.0;
+inline constexpr int qualityDowngradeFrames = 90;
+
+// Step back up only after a long run of easy frames, so it doesn't flip-flop.
+inline constexpr double qualityUpgradeMs = 5.0;
+inline constexpr int qualityUpgradeFrames = 900;
+
+// Weight of each new frame in the smoothed timings. Small means steadier numbers.
+inline constexpr double profilerSmoothing = 0.05;
+
 // Used until the browser tells us the real canvas size.
 inline constexpr int defaultDeviceWidthInPixels = 1280;
 inline constexpr int defaultDeviceHeightInPixels = 720;
@@ -91,8 +112,17 @@ inline constexpr double cameraFollowSharpness = 6.0;
 // Drags shorter than this are ignored, so a tap doesn't nudge the player.
 inline constexpr double dragDeadzoneInCssPixels = 8.0;
 
-// Drag this far from where you pressed for full speed.
+// Drag this far from where you pressed for full speed. Also the joystick's radius.
 inline constexpr double dragFullSpeedInCssPixels = 64.0;
+
+// --- Hold to walk (mouse, or touch on the right of the screen) ---
+
+// The player walks toward the held point. Close to the player it stops,
+// so holding right on top of them doesn't jitter.
+inline constexpr double followDeadzoneInCssPixels = 14.0;
+
+// Full speed when the held point is at least this far from the player.
+inline constexpr double followFullSpeedInCssPixels = 110.0;
 
 // --- Elevation noise ---
 // Frequencies are in cycles per tile, so 1/420 means features about 420 tiles across.

@@ -75,7 +75,8 @@ Module.wanderlightInit = function () {
       bridge.canvas.width = deviceWidth;
       bridge.canvas.height = deviceHeight;
     }
-    Module._wl_resize(deviceWidth, deviceHeight);
+    // CSS size too, so C++ can map a touch point onto the world.
+    Module._wl_resize(deviceWidth, deviceHeight, bounds.width, bounds.height);
   };
 
   new ResizeObserver(resizeCanvas).observe(bridge.canvas);
@@ -114,44 +115,114 @@ function wanderlightAttachInput(canvas) {
     if (document.hidden) Module._wl_release_input();
   });
 
-  // Drag anywhere to walk: touch on phones, mouse on desktop.
-  let dragPointerId = null;
-  let dragStartX = 0;
-  let dragStartY = 0;
+  // Two ways to walk with a pointer:
+  //  - touch on the left side: a floating joystick appears under the thumb
+  //  - touch on the right side, or hold the mouse anywhere: walk toward that point
+  // One pointer steers at a time; extra fingers are ignored.
+  const joystickScreenShare = 0.45; // left 45% of the screen is joystick territory
+  const joystickRadius = Module._wl_joystick_radius();
+  let activePointerId = null;
+  let activeMode = null; // 'joystick' or 'follow'
+  let joystickStartX = 0;
+  let joystickStartY = 0;
+
+  const canvasPoint = (event) => {
+    const bounds = canvas.getBoundingClientRect();
+    return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  };
 
   canvas.addEventListener('pointerdown', (event) => {
-    if (dragPointerId !== null) return; // ignore second fingers
-    dragPointerId = event.pointerId;
-    dragStartX = event.clientX;
-    dragStartY = event.clientY;
+    if (activePointerId !== null) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    activePointerId = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
-    Module._wl_set_drag(1, 0, 0);
+
+    const useJoystick = event.pointerType === 'touch' && event.clientX < window.innerWidth * joystickScreenShare;
+    if (useJoystick) {
+      activeMode = 'joystick';
+      joystickStartX = event.clientX;
+      joystickStartY = event.clientY;
+      Module._wl_set_drag(1, 0, 0);
+      wanderlightCallUi('showJoystick', joystickStartX, joystickStartY, joystickRadius);
+    } else {
+      activeMode = 'follow';
+      const point = canvasPoint(event);
+      Module._wl_set_follow(1, point.x, point.y);
+    }
+    wanderlightCallUi('dismissHint');
   });
+
   canvas.addEventListener('pointermove', (event) => {
-    if (event.pointerId !== dragPointerId) return;
-    Module._wl_set_drag(1, event.clientX - dragStartX, event.clientY - dragStartY);
+    if (event.pointerId !== activePointerId) return;
+    if (activeMode === 'joystick') {
+      const offsetX = event.clientX - joystickStartX;
+      const offsetY = event.clientY - joystickStartY;
+      Module._wl_set_drag(1, offsetX, offsetY);
+      wanderlightCallUi('moveJoystick', offsetX, offsetY, joystickRadius);
+    } else {
+      const point = canvasPoint(event);
+      Module._wl_set_follow(1, point.x, point.y);
+    }
   });
-  const endDrag = (event) => {
-    if (event.pointerId !== dragPointerId) return;
-    dragPointerId = null;
-    Module._wl_set_drag(0, 0, 0);
+
+  const endPointer = (event) => {
+    if (event.pointerId !== activePointerId) return;
+    if (activeMode === 'joystick') {
+      Module._wl_set_drag(0, 0, 0);
+      wanderlightCallUi('hideJoystick');
+    } else {
+      Module._wl_set_follow(0, 0, 0);
+    }
+    activePointerId = null;
+    activeMode = null;
   };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('lostpointercapture', endPointer);
+
+  // A long press would otherwise open the context menu and steal the touch.
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+}
+
+// ?debug=1 shows frame rate and C++ timings, refreshed twice a second.
+var wanderlightDebug = {
+  enabled: new URLSearchParams(location.search).get('debug') === '1',
+  framesSinceReport: 0,
+  lastReportMs: 0,
+};
+
+function wanderlightReportDebug() {
+  const debug = wanderlightDebug;
+  debug.framesSinceReport++;
+  const now = performance.now();
+  if (now - debug.lastReportMs < 500) return;
+  const framesPerSecond = (debug.framesSinceReport * 1000) / (now - debug.lastReportMs);
+  debug.framesSinceReport = 0;
+  debug.lastReportMs = now;
+  const detail = UTF8ToString(Module._wl_debug_text());
+  wanderlightCallUi('setDebugText', `${framesPerSecond.toFixed(0)} fps | ${detail}`);
 }
 
 Module.wanderlightPresent = function (pixelPointer, width, height, pixelScale) {
   const bridge = wanderlightBridge;
 
-  if (!bridge.imageData || bridge.imageData.width !== width || bridge.imageData.height !== height) {
+  if (bridge.frameCanvas.width !== width || bridge.frameCanvas.height !== height) {
     bridge.frameCanvas.width = width;
     bridge.frameCanvas.height = height;
-    bridge.imageData = new ImageData(width, height);
   }
 
-  // Re-read HEAPU8 every frame: memory growth swaps the underlying buffer.
-  const byteCount = width * height * 4;
-  bridge.imageData.data.set(HEAPU8.subarray(pixelPointer, pixelPointer + byteCount));
+  // Wrap the framebuffer in place instead of copying it into a separate
+  // ImageData first: one copy per frame (putImageData) instead of two.
+  // The wrapper is rebuilt if the size, address or wasm memory changes
+  // (memory growth swaps the underlying buffer).
+  const memoryBuffer = HEAPU8.buffer;
+  if (!bridge.imageData || bridge.imageDataBuffer !== memoryBuffer || bridge.imageDataPointer !== pixelPointer ||
+      bridge.imageData.width !== width || bridge.imageData.height !== height) {
+    const pixels = new Uint8ClampedArray(memoryBuffer, pixelPointer, width * height * 4);
+    bridge.imageData = new ImageData(pixels, width, height);
+    bridge.imageDataBuffer = memoryBuffer;
+    bridge.imageDataPointer = pixelPointer;
+  }
   bridge.frameContext.putImageData(bridge.imageData, 0, 0);
 
   // Changing canvas size resets this, so set it every frame.
@@ -162,4 +233,5 @@ Module.wanderlightPresent = function (pixelPointer, width, height, pixelScale) {
     bridge.hasPresentedFrame = true;
     if (Module.onFirstFrame) Module.onFirstFrame();
   }
+  if (wanderlightDebug.enabled) wanderlightReportDebug();
 };

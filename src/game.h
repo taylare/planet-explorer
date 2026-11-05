@@ -14,6 +14,7 @@
 #include "framebuffer.h"
 #include "input.h"
 #include "journal.h"
+#include "performance.h"
 #include "renderer.h"
 #include "save_state.h"
 #include "weather.h"
@@ -37,14 +38,18 @@ class Game {
 public:
     explicit Game(WorldSeed seed = constants::defaultWorldSeed);
 
-    // Canvas size in physical device pixels.
-    void resizeDevice(int deviceWidthInPixels, int deviceHeightInPixels);
+    // Canvas size in physical device pixels, and optionally in CSS pixels
+    // (needed to turn a touch position into a point in the world).
+    void resizeDevice(int deviceWidthInPixels, int deviceHeightInPixels, double cssWidth = 0.0,
+                      double cssHeight = 0.0);
 
     void setTileSizeInPixels(int tileSizeInPixels);
     void setTimeOfDay(double timeOfDay) { dayNight_.setTimeOfDay(timeOfDay); }
 
     void setDirectionHeld(Direction direction, bool held);
     void setDrag(bool active, double offsetXInCssPixels, double offsetYInCssPixels);
+    // Hold to walk: pointer position in CSS pixels from the canvas top-left.
+    void setFollowPointer(bool active, double cssX, double cssY);
     void releaseAllInput();
 
     // Run however many sim steps are due, stream chunks, then draw one frame.
@@ -74,13 +79,20 @@ public:
     const Journal& journal() const { return journal_; }
     const ChunkCache& chunkCache() const { return chunkCache_; }
     const StreamingStats& lastStreamingStats() const { return lastStreamingStats_; }
+    const FrameTimings& frameTimings() const { return profiler_.smoothed(); }
+    int qualityLevel() const { return governor_.level(); }
     double simulatedSeconds() const { return simulatedSeconds_; }
+
+    // One line of timings and counts for the ?debug=1 overlay.
+    std::string debugText() const;
 
     // Region that must stay loaded right now: the screen plus a margin.
     ChunkRegion requiredChunkRegion() const;
 
 private:
     ChunkCoord playerChunk() const;
+    void applyLayout();
+    void updateFollowOffset();
     void streamChunks(double budgetMs);
     void simulateStep(double stepSeconds);
     void updateBiomeAnnouncement(Biome groundBiome, double stepSeconds);
@@ -96,6 +108,12 @@ private:
     FramebufferLayout layout_;
     Framebuffer framebuffer_;
     Renderer renderer_;
+    FrameProfiler profiler_;
+    QualityGovernor governor_;
+    int deviceWidth_ = constants::defaultDeviceWidthInPixels;
+    int deviceHeight_ = constants::defaultDeviceHeightInPixels;
+    double cssPixelsPerDevicePixel_ = 1.0;
+    bool layoutChangePending_ = false;
 
     InputState input_;
     Player player_;

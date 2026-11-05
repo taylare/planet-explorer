@@ -7,6 +7,17 @@
 
 namespace wl {
 
+namespace {
+// Direction of an offset, with strength ramping from 0 at the deadzone edge
+// to 1 at the full-speed distance. Shared by the joystick and hold to walk.
+MoveIntent rampedIntent(double offsetX, double offsetY, double deadzone, double fullSpeedDistance) {
+    const double length = std::hypot(offsetX, offsetY);
+    if (length <= deadzone) return {};
+    const double strength = std::min(1.0, (length - deadzone) / (fullSpeedDistance - deadzone));
+    return {offsetX / length * strength, offsetY / length * strength};
+}
+}  // namespace
+
 MoveIntent computeMoveIntent(const InputState& input) {
     const auto held = [&input](Direction direction) {
         return input.directionHeld[static_cast<int>(direction)];
@@ -20,16 +31,16 @@ MoveIntent computeMoveIntent(const InputState& input) {
         return {keyX / length, keyY / length};
     }
 
-    if (!input.dragActive) return {};
+    if (input.dragActive) {
+        return rampedIntent(input.dragOffsetX, input.dragOffsetY, constants::dragDeadzoneInCssPixels,
+                            constants::dragFullSpeedInCssPixels);
+    }
 
-    const double dragLength = std::hypot(input.dragOffsetX, input.dragOffsetY);
-    if (dragLength <= constants::dragDeadzoneInCssPixels) return {};
-
-    // Ramp from 0 at the deadzone edge to 1 at full-speed distance.
-    const double ramp = (dragLength - constants::dragDeadzoneInCssPixels) /
-                        (constants::dragFullSpeedInCssPixels - constants::dragDeadzoneInCssPixels);
-    const double strength = std::min(1.0, ramp);
-    return {input.dragOffsetX / dragLength * strength, input.dragOffsetY / dragLength * strength};
+    if (input.followActive) {
+        return rampedIntent(input.followOffsetX, input.followOffsetY, constants::followDeadzoneInCssPixels,
+                            constants::followFullSpeedInCssPixels);
+    }
+    return {};
 }
 
 }  // namespace wl

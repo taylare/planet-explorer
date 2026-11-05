@@ -61,6 +61,32 @@ TEST_CASE("drag strength ramps up then caps at full speed", "[input]") {
     REQUIRE(lengthOf(computeMoveIntent(input)) == Catch::Approx(1.0));
 }
 
+TEST_CASE("hold to walk heads toward the held point", "[input]") {
+    InputState input;
+    input.followActive = true;
+    input.followOffsetX = 0.0;
+    input.followOffsetY = -constants::followFullSpeedInCssPixels * 2.0;  // well above the player
+    const MoveIntent intent = computeMoveIntent(input);
+    REQUIRE(intent.x == Catch::Approx(0.0));
+    REQUIRE(intent.y == Catch::Approx(-1.0));
+}
+
+TEST_CASE("hold to walk stops close to the player", "[input]") {
+    InputState input;
+    input.followActive = true;
+    input.followOffsetX = constants::followDeadzoneInCssPixels * 0.5;
+    REQUIRE(lengthOf(computeMoveIntent(input)) == 0.0);
+}
+
+TEST_CASE("the joystick wins over hold to walk", "[input]") {
+    InputState input;
+    input.dragActive = true;
+    input.dragOffsetX = -constants::dragFullSpeedInCssPixels * 2.0;
+    input.followActive = true;
+    input.followOffsetX = 500.0;
+    REQUIRE(computeMoveIntent(input).x == Catch::Approx(-1.0));
+}
+
 TEST_CASE("keys take priority over dragging", "[input]") {
     InputState input = withKeys({Direction::Left});
     input.dragActive = true;

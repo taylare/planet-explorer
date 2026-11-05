@@ -31,6 +31,7 @@ add_library(wanderlight_core STATIC
   src/input.cpp
   src/journal.cpp
   src/noise.cpp
+  src/performance.cpp
   src/props.cpp
   src/renderer.cpp
   src/save_state.cpp
@@ -55,6 +56,11 @@ if(EMSCRIPTEN)
   add_executable(wanderlight_web src/main.cpp)
   target_link_libraries(wanderlight_web PRIVATE wanderlight_core)
 
+  # Link-time optimisation lets the optimiser inline across files, which
+  # matters for the small hot functions (noise corners, hashes, pixel blends).
+  target_compile_options(wanderlight_core PRIVATE "$<$<CONFIG:Release>:-flto>")
+  target_compile_options(wanderlight_web PRIVATE "$<$<CONFIG:Release>:-flto>")
+
   set_target_properties(wanderlight_web PROPERTIES
     OUTPUT_NAME "index"
     SUFFIX ".html"
@@ -67,8 +73,12 @@ if(EMSCRIPTEN)
     "--shell-file=${WANDERLIGHT_SHELL}"
     "--pre-js=${WANDERLIGHT_BRIDGE}"
     "-sENVIRONMENT=web"
+    # Start with enough memory for a typical session (cache, buffers) so it
+    # rarely has to grow, but allow growth for very zoomed-out views.
+    "-sINITIAL_MEMORY=33554432"
     "-sALLOW_MEMORY_GROWTH=1"
     "$<$<CONFIG:Release>:-O3>"
+    "$<$<CONFIG:Release>:-flto>"
     "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
   )
 endif()

@@ -230,6 +230,68 @@
     .text-button.secondary { background: transparent; color: var(--text); border: 1px solid var(--panel-border); }
     .text-button:hover { filter: brightness(1.08); }
     .world-note { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; line-height: 1.45; }
+
+    /* Floating joystick (touch, left side). Position and size are set from script. */
+    #joystick {
+      position: fixed;
+      border-radius: 50%;
+      border: 1.5px solid rgba(217, 220, 239, 0.35);
+      background: rgba(18, 22, 38, 0.25);
+      pointer-events: none;
+      display: none;
+      z-index: 3;
+    }
+    #joystick.visible { display: block; }
+    #joystick-knob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 44px;
+      height: 44px;
+      margin: -22px 0 0 -22px;
+      border-radius: 50%;
+      background: rgba(242, 200, 121, 0.55);
+      border: 1px solid rgba(242, 200, 121, 0.9);
+    }
+
+    /* First-visit hint */
+    #hint {
+      position: fixed;
+      left: 50%;
+      bottom: calc(48px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: calc(100vw - 2 * var(--gutter));
+      font-size: 13px;
+      line-height: 1.5;
+      text-align: center;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+      pointer-events: none;
+      z-index: 4;
+    }
+    #hint.visible { opacity: 1; }
+
+    /* ?debug=1 overlay */
+    #debug {
+      position: fixed;
+      left: calc(var(--gutter) + env(safe-area-inset-left));
+      bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
+      max-width: calc(100vw - 2 * var(--gutter) - 110px);
+      font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace;
+      color: #b8f0c0;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 6px;
+      padding: 4px 8px;
+      pointer-events: none;
+      display: none;
+      z-index: 6;
+    }
+    #debug.visible { display: block; }
   </style>
 </head>
 <body>
@@ -254,6 +316,9 @@
   </div>
 
   <div id="seed-label">Seed</div>
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <div id="hint"></div>
+  <div id="debug"></div>
 
   <div id="banner" aria-live="polite">
     <div class="kicker"></div>
@@ -400,9 +465,59 @@
       }
     }
 
+    // --- First-visit hint ---
+    const hint = document.getElementById('hint');
+    const hintSeenKey = 'wanderlight.hintSeen';
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+    let hintTimer = null;
+    function hintAlreadySeen() {
+      try { return window.localStorage.getItem(hintSeenKey) === '1'; } catch (error) { return true; }
+    }
+    function dismissHint() {
+      if (!hint.classList.contains('visible')) return;
+      hint.classList.remove('visible');
+      clearTimeout(hintTimer);
+      try { window.localStorage.setItem(hintSeenKey, '1'); } catch (error) { /* fine either way */ }
+    }
+    function showHintOnce() {
+      if (hintAlreadySeen()) return;
+      hint.textContent = isTouchDevice
+        ? 'Drag on the left to steer. Hold anywhere on the right to walk there.'
+        : 'Walk with WASD or the arrow keys, or hold the mouse where you want to go.';
+      hint.classList.add('visible');
+      hintTimer = setTimeout(dismissHint, 9000);
+    }
+    window.addEventListener('keydown', dismissHint);
+
+    // --- Joystick and debug overlay ---
+    const joystick = document.getElementById('joystick');
+    const joystickKnob = document.getElementById('joystick-knob');
+    const debugOverlay = document.getElementById('debug');
+
     // Called from bridge.js. The game decides when; this decides how it looks.
     let bannerTimer = null;
     window.wanderlightUi = {
+      showJoystick(x, y, radius) {
+        joystick.style.width = joystick.style.height = `${radius * 2}px`;
+        joystick.style.left = `${x - radius}px`;
+        joystick.style.top = `${y - radius}px`;
+        joystickKnob.style.transform = 'translate(0, 0)';
+        joystick.classList.add('visible');
+      },
+      moveJoystick(offsetX, offsetY, radius) {
+        // The knob stops at the rim, which is also where full speed kicks in.
+        const length = Math.hypot(offsetX, offsetY);
+        const clamp = length > radius ? radius / length : 1;
+        joystickKnob.style.transform = `translate(${offsetX * clamp}px, ${offsetY * clamp}px)`;
+      },
+      hideJoystick() {
+        joystick.classList.remove('visible');
+      },
+      dismissHint,
+      setDebugText(text) {
+        debugOverlay.classList.add('visible');
+        debugOverlay.textContent = text;
+      },
       showBanner(text, isDiscovery) {
         banner.querySelector('.kicker').textContent = isDiscovery ? 'Discovered' : '';
         banner.querySelector('.title').textContent = text;
@@ -430,6 +545,7 @@
       },
       onFirstFrame() {
         loadingOverlay.classList.add('hidden');
+        showHintOnce();
       },
       onAbort() {
         statusLine.textContent = 'Something went wrong loading the world. Try refreshing.';

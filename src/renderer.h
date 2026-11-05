@@ -111,6 +111,13 @@ private:
         float strength = 1.0f;  // multiplied into the settings' intensity
     };
 
+    struct LitRect {
+        int minX = 0;
+        int minY = 0;
+        int maxX = 0;
+        int maxY = 0;
+    };
+
     struct Star {
         int x = 0;
         int y = 0;
@@ -140,6 +147,8 @@ private:
     std::vector<std::uint8_t> waterMask_;     // 1 where the pixel shows water
     std::vector<int> waterRowOffsets_;        // shimmer offset per row
     std::vector<std::uint16_t> lightBuffer_;  // RGB light per pixel, 256 means +1.0
+    std::vector<LitRect> litRects_;           // patches of lightBuffer_ that need wiping
+    int lightBufferWidth_ = 0;
     std::vector<DrawItem> drawItems_;
     std::vector<PendingLight> lights_;
     std::vector<std::array<int, 3>> steamSources_;  // x, y, variant

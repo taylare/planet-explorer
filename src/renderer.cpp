@@ -627,7 +627,24 @@ void Renderer::applyLighting(Framebuffer& framebuffer, const LightingState& ligh
     const bool useLights = lighting.nightAmount > nightThreshold && !lights_.empty();
 
     if (useLights) {
-        lightBuffer_.assign(pixelCount * 3, 0);
+        // Lights only touch small patches, so instead of wiping the whole
+        // buffer (1.4 MB at full size) every frame, wipe just the patches
+        // that were lit last time.
+        // Rotating a phone swaps width and height but keeps the pixel count,
+        // so check the width too or old patches would be wiped in the wrong place.
+        if (lightBuffer_.size() != pixelCount * 3 || lightBufferWidth_ != width) {
+            lightBuffer_.assign(pixelCount * 3, 0);
+            lightBufferWidth_ = width;
+            litRects_.clear();
+        }
+        for (const LitRect& rect : litRects_) {
+            for (int y = rect.minY; y <= rect.maxY; ++y) {
+                std::uint16_t* rowStart = &lightBuffer_[(static_cast<std::size_t>(y) * width + rect.minX) * 3];
+                std::fill(rowStart, rowStart + (rect.maxX - rect.minX + 1) * 3, std::uint16_t{0});
+            }
+        }
+        litRects_.clear();
+
         for (const PendingLight& light : lights_) {
             const constants::LightSettings& settings = *light.settings;
             const int radius = static_cast<int>(settings.radiusInTiles * tileSize);
@@ -639,6 +656,8 @@ void Renderer::applyLighting(Framebuffer& framebuffer, const LightingState& ligh
             const int maxX = std::min(width - 1, light.x + radius);
             const int minY = std::max(0, light.y - radius);
             const int maxY = std::min(height - 1, light.y + radius);
+            if (minX > maxX || minY > maxY) continue;  // entirely off screen
+            litRects_.push_back({minX, minY, maxX, maxY});
             for (int y = minY; y <= maxY; ++y) {
                 for (int x = minX; x <= maxX; ++x) {
                     const double deltaX = x - light.x;

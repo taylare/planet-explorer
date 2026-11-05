@@ -12,14 +12,15 @@ int divideRoundingUp(int numerator, int denominator) {
 }
 }  // namespace
 
-FramebufferLayout computeFramebufferLayout(int deviceWidthInPixels, int deviceHeightInPixels) {
+FramebufferLayout computeFramebufferLayout(int deviceWidthInPixels, int deviceHeightInPixels,
+                                           int targetLongEdgeInPixels) {
     const int deviceWidth = std::max(deviceWidthInPixels, 1);
     const int deviceHeight = std::max(deviceHeightInPixels, 1);
     const int deviceLongEdge = std::max(deviceWidth, deviceHeight);
+    const int targetLongEdge = std::max(targetLongEdgeInPixels, constants::minFramebufferEdgeInPixels);
 
     FramebufferLayout layout;
-    layout.pixelScale =
-        std::max(1, divideRoundingUp(deviceLongEdge, constants::targetFramebufferLongEdgeInPixels));
+    layout.pixelScale = std::max(1, divideRoundingUp(deviceLongEdge, targetLongEdge));
     layout.widthInPixels = std::max(constants::minFramebufferEdgeInPixels,
                                     divideRoundingUp(deviceWidth, layout.pixelScale));
     layout.heightInPixels = std::max(constants::minFramebufferEdgeInPixels,
