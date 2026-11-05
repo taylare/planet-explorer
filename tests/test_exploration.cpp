@@ -3,6 +3,7 @@
 #include <unordered_map>
 
 #include "exploration.h"
+#include "props.h"
 
 using namespace wl;
 
