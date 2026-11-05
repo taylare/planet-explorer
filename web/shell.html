@@ -9,11 +9,12 @@
   <style>
     :root {
       --background: #0b0d16;
-      --panel: rgba(18, 22, 38, 0.72);
+      --panel: rgba(18, 22, 38, 0.82);
       --panel-border: rgba(160, 170, 220, 0.18);
       --text: #d9dcef;
       --text-dim: #8a90b0;
       --accent: #f2c879;
+      --gutter: 12px;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -38,6 +39,8 @@
       touch-action: none; /* we handle touch ourselves */
       outline: none;
     }
+
+    /* Loading screen */
     #loading {
       position: fixed;
       inset: 0;
@@ -48,7 +51,7 @@
       gap: 18px;
       background: var(--background);
       transition: opacity 0.6s ease;
-      z-index: 10;
+      z-index: 20;
     }
     #loading.hidden { opacity: 0; pointer-events: none; }
     #loading h1 {
@@ -69,10 +72,17 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #status { font-size: 14px; color: var(--text-dim); min-height: 1.2em; }
     #status.error { color: #f08a8a; }
-    .hud-button {
+
+    /* HUD buttons, top right */
+    #hud {
       position: fixed;
-      top: calc(12px + env(safe-area-inset-top));
-      right: calc(12px + env(safe-area-inset-right));
+      top: calc(var(--gutter) + env(safe-area-inset-top));
+      right: calc(var(--gutter) + env(safe-area-inset-right));
+      display: flex;
+      gap: 8px;
+      z-index: 5;
+    }
+    .hud-button {
       width: 40px;
       height: 40px;
       border-radius: 10px;
@@ -84,20 +94,206 @@
       cursor: pointer;
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
+    }
+    .hud-button:hover, .hud-button:focus-visible { border-color: var(--accent); outline: none; }
+    .hud-button svg { width: 18px; height: 18px; }
+
+    #seed-label {
+      position: fixed;
+      right: calc(var(--gutter) + env(safe-area-inset-right));
+      bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 4px 8px;
       z-index: 5;
     }
-    .hud-button:hover { border-color: var(--accent); }
-    .hud-button svg { width: 18px; height: 18px; }
+
+    /* Biome and discovery banner */
+    #banner {
+      position: fixed;
+      top: 22%;
+      left: 50%;
+      transform: translate(-50%, 6px);
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.9s ease, transform 0.9s ease;
+      z-index: 4;
+      max-width: calc(100vw - 2 * var(--gutter));
+    }
+    #banner.visible { opacity: 1; transform: translate(-50%, 0); }
+    #banner .kicker {
+      font-size: 11px;
+      letter-spacing: 0.35em;
+      color: var(--accent);
+      text-transform: uppercase;
+      min-height: 1em;
+    }
+    #banner .title {
+      font-size: clamp(22px, 6vw, 36px);
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+    }
+
+    /* Panels */
+    .panel {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(420px, calc(100vw - 2 * var(--gutter)));
+      max-height: min(70vh, 560px);
+      display: none;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 10;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .panel.open { display: flex; }
+    .panel header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    .panel h2 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; }
+    .panel .body { padding: 12px 16px 16px; overflow-y: auto; }
+    .close-button {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+    .close-button:hover { color: var(--text); }
+
+    .journal-section h3 {
+      margin: 10px 0 6px;
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .journal-list { list-style: none; margin: 0; padding: 0; }
+    .journal-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(160, 170, 220, 0.08);
+      font-size: 14px;
+    }
+    .journal-list .meta { color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .journal-empty { color: var(--text-dim); font-size: 13px; padding: 6px 0; }
+
+    .world-current { font-size: 13px; color: var(--text-dim); margin: 0 0 14px; }
+    .world-current strong { color: var(--text); font-variant-numeric: tabular-nums; }
+    .world-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .world-row input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      font-size: 16px; /* 16px stops iOS zooming on focus */
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .world-row input:focus { outline: none; border-color: var(--accent); }
+    .text-button {
+      font: inherit;
+      font-size: 14px;
+      color: var(--background);
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .text-button.secondary { background: transparent; color: var(--text); border: 1px solid var(--panel-border); }
+    .text-button:hover { filter: brightness(1.08); }
+    .world-note { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; line-height: 1.45; }
   </style>
 </head>
 <body>
   <canvas id="canvas" tabindex="-1" aria-label="Wanderlight game view"></canvas>
 
-  <button id="fullscreen-button" class="hud-button" type="button" aria-label="Toggle fullscreen" title="Fullscreen">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
-    </svg>
-  </button>
+  <div id="hud">
+    <button id="journal-button" class="hud-button" type="button" aria-label="Journal (J)" title="Journal (J)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/>
+      </svg>
+    </button>
+    <button id="world-button" class="hud-button" type="button" aria-label="World and seed" title="World and seed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+      </svg>
+    </button>
+    <button id="fullscreen-button" class="hud-button" type="button" aria-label="Toggle fullscreen" title="Fullscreen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="seed-label">Seed</div>
+
+  <div id="banner" aria-live="polite">
+    <div class="kicker"></div>
+    <div class="title"></div>
+  </div>
+
+  <section id="journal-panel" class="panel" aria-label="Journal">
+    <header>
+      <h2>Journal</h2>
+      <button class="close-button" type="button" data-close aria-label="Close">&times;</button>
+    </header>
+    <div class="body">
+      <div class="journal-section">
+        <h3>Landmarks</h3>
+        <ul id="journal-landmarks" class="journal-list"></ul>
+      </div>
+      <div class="journal-section">
+        <h3>Biomes</h3>
+        <ul id="journal-biomes" class="journal-list"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="world-panel" class="panel" aria-label="World">
+    <header>
+      <h2>World</h2>
+      <button class="close-button" type="button" data-close aria-label="Close">&times;</button>
+    </header>
+    <div class="body">
+      <p class="world-current">Current seed: <strong id="world-current-seed"></strong></p>
+      <form id="seed-form" class="world-row">
+        <input id="seed-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Enter a seed" aria-label="Seed">
+        <button class="text-button" type="submit">Visit</button>
+      </form>
+      <div class="world-row">
+        <button id="new-world-button" class="text-button secondary" type="button">New random world</button>
+      </div>
+      <p class="world-note">The same seed always makes the same world. Changing world starts fresh: your journal and map belong to the world you leave.</p>
+    </div>
+  </section>
 
   <div id="loading">
     <h1>WANDERLIGHT</h1>
@@ -108,13 +304,16 @@
   <script>
     const loadingOverlay = document.getElementById('loading');
     const statusLine = document.getElementById('status');
-    const fullscreenButton = document.getElementById('fullscreen-button');
+    const banner = document.getElementById('banner');
+    const seedLabel = document.getElementById('seed-label');
+    const journalPanel = document.getElementById('journal-panel');
+    const worldPanel = document.getElementById('world-panel');
+    const seedInput = document.getElementById('seed-input');
 
-    // iPhone Safari has no fullscreen API for pages. Hide the button there.
+    // --- Fullscreen (iPhone Safari has no page fullscreen, so hide it there) ---
     const root = document.documentElement;
-    const canGoFullscreen = !!(root.requestFullscreen || root.webkitRequestFullscreen);
-    if (!canGoFullscreen) fullscreenButton.style.display = 'none';
-
+    const fullscreenButton = document.getElementById('fullscreen-button');
+    if (!(root.requestFullscreen || root.webkitRequestFullscreen)) fullscreenButton.style.display = 'none';
     fullscreenButton.addEventListener('click', () => {
       const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
       if (isFullscreen) {
@@ -123,6 +322,105 @@
         (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
       }
     });
+
+    // --- Panels ---
+    function closePanels() {
+      journalPanel.classList.remove('open');
+      worldPanel.classList.remove('open');
+      document.getElementById('canvas').focus();
+    }
+    function togglePanel(panel) {
+      const wasOpen = panel.classList.contains('open');
+      closePanels();
+      if (!wasOpen) panel.classList.add('open');
+    }
+    document.getElementById('journal-button').addEventListener('click', () => togglePanel(journalPanel));
+    document.getElementById('world-button').addEventListener('click', () => {
+      togglePanel(worldPanel);
+      if (worldPanel.classList.contains('open')) seedInput.focus();
+    });
+    document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', closePanels));
+    window.addEventListener('keydown', (event) => {
+      if (event.target === seedInput) {
+        if (event.key === 'Escape') closePanels();
+        return;
+      }
+      if (event.key === 'Escape') closePanels();
+      if (event.code === 'KeyJ') togglePanel(journalPanel);
+    });
+
+    // --- World and seed ---
+    function startWorld(seed) {
+      if (window.Module && Module._wl_new_world) Module._wl_new_world(seed >>> 0);
+      closePanels();
+    }
+    // Any text works as a seed: numbers are used as-is, words are hashed
+    // (FNV-1a), so "lighthouse" is a valid and repeatable seed.
+    function seedFromText(text) {
+      const trimmed = text.trim();
+      if (/^\d+$/.test(trimmed) && Number(trimmed) <= 4294967295) return Number(trimmed);
+      let hash = 2166136261;
+      for (let index = 0; index < trimmed.length; index++) {
+        hash ^= trimmed.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+    document.getElementById('seed-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!seedInput.value.trim()) return;
+      startWorld(seedFromText(seedInput.value));
+      seedInput.value = '';
+    });
+    document.getElementById('new-world-button').addEventListener('click', () => {
+      const random = new Uint32Array(1);
+      crypto.getRandomValues(random);
+      startWorld(random[0]);
+    });
+
+    // --- Journal ---
+    function renderJournalList(listElement, entries, emptyText) {
+      listElement.replaceChildren();
+      if (entries.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'journal-empty';
+        empty.textContent = emptyText;
+        listElement.appendChild(empty);
+        return;
+      }
+      for (const entry of entries) {
+        const item = document.createElement('li');
+        const name = document.createElement('span');
+        name.textContent = entry.name;
+        const meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = `Day ${entry.day} · ${entry.x}, ${entry.y}`;
+        item.append(name, meta);
+        listElement.appendChild(item);
+      }
+    }
+
+    // Called from bridge.js. The game decides when; this decides how it looks.
+    let bannerTimer = null;
+    window.wanderlightUi = {
+      showBanner(text, isDiscovery) {
+        banner.querySelector('.kicker').textContent = isDiscovery ? 'Discovered' : '';
+        banner.querySelector('.title').textContent = text;
+        banner.classList.add('visible');
+        clearTimeout(bannerTimer);
+        bannerTimer = setTimeout(() => banner.classList.remove('visible'), isDiscovery ? 4200 : 2800);
+      },
+      setSeed(seed) {
+        seedLabel.textContent = `Seed ${seed}`;
+        document.getElementById('world-current-seed').textContent = String(seed);
+      },
+      setJournal(entries) {
+        renderJournalList(document.getElementById('journal-landmarks'),
+          entries.filter((entry) => entry.type === 'landmark'), 'Nothing found yet. Keep wandering.');
+        renderJournalList(document.getElementById('journal-biomes'),
+          entries.filter((entry) => entry.type === 'biome'), 'No biomes recorded yet.');
+      },
+    };
 
     var Module = {
       canvas: document.getElementById('canvas'),

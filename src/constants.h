@@ -409,4 +409,102 @@ inline constexpr SpeciesTuning lizardTuning{1.0, 5.0, 2.5};
 inline constexpr SpeciesTuning goatTuning{1.0, 4.0, 4.0};
 inline constexpr SpeciesTuning foxTuning{1.4, 6.0, 4.5};
 
+// --- Weather ---
+
+// Weather fronts come from a slow noise field that drifts across the world,
+// so rain moves through an area rather than switching on and off.
+inline constexpr double weatherBaseFrequency = 1.0 / 650.0;
+inline constexpr int weatherOctaves = 3;
+inline constexpr double weatherDriftTilesPerSecond = 0.8;
+
+// Cloud cover ramps from nothing to full across this band of noise values.
+inline constexpr double weatherCloudStart = 0.05;
+inline constexpr double weatherCloudFull = 0.45;
+
+// Dry ground gets little or no rain even under cloud.
+inline constexpr double weatherMoistureStart = 0.35;
+inline constexpr double weatherMoistureFull = 0.7;
+
+// Colder than this, precipitation falls as snow.
+inline constexpr double snowfallTemperature = 0.32;
+
+// The weather target is re-checked this often (it changes slowly anyway).
+inline constexpr double weatherSampleIntervalSeconds = 0.5;
+
+// How quickly rain fades in and out. Low, so weather changes feel gradual.
+inline constexpr double weatherEaseSharpness = 0.35;
+
+// Rain dims the scene a little.
+inline constexpr float overcastDarkening = 0.22f;
+
+inline constexpr int maxRainParticles = 260;
+inline constexpr int maxSnowParticles = 200;
+inline constexpr double rainFallPixelsPerSecond = 220.0;
+inline constexpr double rainWindPixelsPerSecond = -55.0;
+inline constexpr int rainStreakLengthInPixels = 4;
+inline constexpr double snowFallPixelsPerSecond = 20.0;
+inline constexpr double snowSwayPixels = 3.0;
+inline constexpr double snowSwaySpeed = 1.3;
+inline constexpr Rgb8 rainColor{170, 190, 222};
+inline constexpr Rgb8 snowflakeColor{242, 245, 250};
+
+// --- Footprints and ripples ---
+
+// One footprint per stride, alternating feet either side of the path.
+inline constexpr double footprintSideOffsetInTiles = 0.12;
+inline constexpr double footprintLifetimeSeconds = 12.0;
+inline constexpr float footprintDarkening = 0.72f;
+inline constexpr int maxFootprints = 80;
+
+inline constexpr double rippleLifetimeSeconds = 1.6;
+inline constexpr double rippleMaxRadiusInTiles = 0.9;
+inline constexpr int maxRipples = 24;
+
+// Standing still in water still sends out the odd ripple.
+inline constexpr double idleRippleIntervalSeconds = 1.2;
+inline constexpr Rgb8 rippleColor{176, 214, 228};
+
+// --- Exploration and minimap ---
+
+// Chunks within this many chunks of the player get revealed on the minimap.
+inline constexpr int explorationRevealRadiusInChunks = 1;
+
+// Each minimap pixel covers this many tiles. Must divide chunkSizeInTiles,
+// because each chunk keeps a tiny summary at exactly that resolution.
+inline constexpr int minimapTilesPerPixel = 4;
+inline constexpr int minimapSizeInPixels = 72;
+inline constexpr int minimapMarginInPixels = 6;
+
+// Summaries for revealed chunks that aren't loaded (after a reload, say)
+// are rebuilt from the seed, at most this many per frame.
+inline constexpr int minimapSummariesPerFrame = 12;
+
+inline constexpr Rgb8 minimapFogColor{16, 18, 30};
+inline constexpr Rgb8 minimapBorderColor{170, 166, 196};
+inline constexpr Rgb8 minimapPlayerColor{255, 255, 255};
+inline constexpr Rgb8 towerMarkerColor{255, 206, 120};
+inline constexpr Rgb8 crystalMarkerColor{150, 240, 240};
+inline constexpr Rgb8 hotSpringMarkerColor{120, 214, 214};
+
+// Player dot blinks this many times per second.
+inline constexpr double minimapBlinkRate = 1.5;
+
+// --- Journal and discovery ---
+
+// Get this close to a landmark to count as having found it.
+inline constexpr double landmarkDiscoveryRadiusInTiles = 6.0;
+inline constexpr double discoveryCheckIntervalSeconds = 0.25;
+
+// Stay in a biome this long before its name is shown. Stops the banner
+// flickering while you walk along a coastline.
+inline constexpr double biomeAnnounceDelaySeconds = 1.2;
+
+// --- Saving ---
+
+inline constexpr double autosaveIntervalSeconds = 10.0;
+inline constexpr int saveFormatVersion = 1;
+
+// Sanity limit when loading, so a corrupt save can't ask for billions of entries.
+inline constexpr int maxSavedEntries = 4000000;
+
 }  // namespace wl::constants

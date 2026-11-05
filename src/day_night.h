@@ -19,12 +19,15 @@ public:
 
     void advance(double seconds);
     void setTimeOfDay(double timeOfDay);
+    void setDay(int day) { day_ = day < 1 ? 1 : day; }
 
     double timeOfDay() const { return timeOfDay_; }
+    int day() const { return day_; }  // starts at 1, ticks over at midnight
     LightingState lighting() const { return lightingAt(timeOfDay_); }
 
 private:
     double timeOfDay_;
+    int day_ = 1;
 };
 
 }  // namespace wl

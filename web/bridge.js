@@ -1,6 +1,53 @@
 // Thin JS layer, bundled into index.js with --pre-js.
-// Its only jobs: size the canvas and copy the C++ framebuffer onto it.
+// Its jobs: size the canvas, copy the C++ framebuffer onto it, forward input,
+// store saves in localStorage, and pass UI events to the page (shell.html).
 // Game logic stays in C++.
+
+var wanderlightSaveKey = 'wanderlight.save';
+
+// The page's UI, if it has one. Set up by shell.html as window.wanderlightUi.
+function wanderlightCallUi(method, ...args) {
+  const ui = window.wanderlightUi;
+  if (ui && typeof ui[method] === 'function') ui[method](...args);
+}
+
+// localStorage can throw (private mode, storage full, blocked cookies). The
+// game should keep running either way, just without saving.
+Module.wanderlightLoadSave = function () {
+  try {
+    return window.localStorage.getItem(wanderlightSaveKey);
+  } catch (error) {
+    return null;
+  }
+};
+
+Module.wanderlightStoreSave = function (text) {
+  try {
+    window.localStorage.setItem(wanderlightSaveKey, text);
+  } catch (error) {
+    // Nothing useful to do; progress just won't persist this time.
+  }
+};
+
+Module.wanderlightBanner = function (text, isDiscovery) {
+  wanderlightCallUi('showBanner', text, isDiscovery);
+};
+
+Module.wanderlightJournalChanged = function () {
+  wanderlightCallUi('setJournal', JSON.parse(UTF8ToString(Module._wl_journal_json())));
+};
+
+Module.wanderlightWorldChanged = function (seed) {
+  wanderlightCallUi('setSeed', seed);
+};
+
+// Save when the tab is hidden or closed, so a quick exit doesn't lose the last few seconds.
+window.addEventListener('pagehide', () => {
+  if (Module._wl_save_now) Module._wl_save_now();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && Module._wl_save_now) Module._wl_save_now();
+});
 
 var wanderlightBridge = {
   canvas: null,
@@ -52,6 +99,9 @@ function wanderlightAttachInput(canvas) {
   const onKey = (event, held) => {
     const direction = directionForKey[event.code];
     if (direction === undefined) return;
+    // Typing a seed into a text box shouldn't walk the player around.
+    const target = event.target;
+    if (held && target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
     event.preventDefault(); // stop arrows scrolling the page
     Module._wl_set_direction(direction, held ? 1 : 0);
   };

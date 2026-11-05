@@ -46,7 +46,9 @@ LightingState lightingAt(double timeOfDay) {
 DayNightCycle::DayNightCycle(double startTimeOfDay) : timeOfDay_(wrapUnit(startTimeOfDay)) {}
 
 void DayNightCycle::advance(double seconds) {
-    timeOfDay_ = wrapUnit(timeOfDay_ + seconds / constants::dayLengthSeconds);
+    const double unwrapped = timeOfDay_ + seconds / constants::dayLengthSeconds;
+    day_ += static_cast<int>(std::floor(unwrapped));  // count each midnight passed
+    timeOfDay_ = wrapUnit(unwrapped);
 }
 
 void DayNightCycle::setTimeOfDay(double timeOfDay) { timeOfDay_ = wrapUnit(timeOfDay); }

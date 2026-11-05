@@ -2,16 +2,36 @@
 // main.cpp drives it on the web; tests drive it natively.
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "chunk_cache.h"
 #include "day_night.h"
+#include "effects.h"
 #include "entities.h"
+#include "exploration.h"
 #include "fixed_timestep.h"
 #include "framebuffer.h"
 #include "input.h"
+#include "journal.h"
 #include "renderer.h"
+#include "save_state.h"
+#include "weather.h"
 #include "world.h"
 
 namespace wl {
+
+// Things the page should react to. The game decides when; the page decides how they look.
+enum class GameEventType {
+    BiomeEntered,    // text is the biome name
+    Discovery,       // text describes a new landmark
+    JournalChanged,  // journal panel should refresh
+};
+
+struct GameEvent {
+    GameEventType type;
+    std::string text;
+};
 
 class Game {
 public:
@@ -30,12 +50,28 @@ public:
     // Run however many sim steps are due, stream chunks, then draw one frame.
     void advanceFrame(double realDeltaSeconds);
 
+    // --- Saving ---
+    SaveState makeSaveState() const;
+    // Restores progress. Refuses (returns false) a save from a different seed.
+    bool applySaveState(const SaveState& state);
+    void requestSave() { saveRequested_ = true; }
+    // True once after each save request (autosave, discovery, or manual).
+    bool takeSaveRequest();
+
+    // Events since the last call, oldest first.
+    std::vector<GameEvent> takeEvents();
+
+    WorldSeed seed() const { return world_.seed(); }
     const Framebuffer& framebuffer() const { return framebuffer_; }
     const FramebufferLayout& layout() const { return layout_; }
     const World& world() const { return world_; }
     const Player& player() const { return player_; }
     const Wildlife& wildlife() const { return wildlife_; }
     const DayNightCycle& dayNight() const { return dayNight_; }
+    const WeatherSystem& weather() const { return weather_; }
+    const TrailEffects& trails() const { return trails_; }
+    const Exploration& exploration() const { return exploration_; }
+    const Journal& journal() const { return journal_; }
     const ChunkCache& chunkCache() const { return chunkCache_; }
     const StreamingStats& lastStreamingStats() const { return lastStreamingStats_; }
     double simulatedSeconds() const { return simulatedSeconds_; }
@@ -47,6 +83,9 @@ private:
     ChunkCoord playerChunk() const;
     void streamChunks(double budgetMs);
     void simulateStep(double stepSeconds);
+    void updateBiomeAnnouncement(Biome groundBiome, double stepSeconds);
+    void checkLandmarkDiscoveries();
+    void rebuildMinimapMarkers();
     void render(double interpolationAlpha);
 
     // Declared first: the cache holds a reference to it.
@@ -62,12 +101,30 @@ private:
     Player player_;
     Wildlife wildlife_;
     DayNightCycle dayNight_;
+    WeatherSystem weather_;
+    TrailEffects trails_;
+    Exploration exploration_;
+    Journal journal_;
+    MinimapView minimapView_;
 
     // Camera position is simulated (it eases after the player) and
     // interpolated like the player for smooth rendering.
     Vec2 cameraPosition_;
     Vec2 previousCameraPosition_;
     int tileSizeInPixels_ = constants::defaultTileSizeInPixels;
+
+    // Biome banner: a biome must hold steady for a moment before it's announced.
+    Biome candidateBiome_ = Biome::DeepOcean;
+    double candidateSeconds_ = 0.0;
+    Biome announcedBiome_ = Biome::DeepOcean;
+    bool hasAnnouncedBiome_ = false;
+
+    ChunkCoord lastRevealCentre_{};
+    bool hasRevealed_ = false;
+    double secondsUntilDiscoveryCheck_ = 0.0;
+    double secondsSinceAutosave_ = 0.0;
+    bool saveRequested_ = false;
+    std::vector<GameEvent> events_;
 
     StreamingStats lastStreamingStats_;
     double simulatedSeconds_ = 0.0;

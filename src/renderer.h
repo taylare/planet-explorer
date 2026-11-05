@@ -9,9 +9,12 @@
 #include "art.h"
 #include "constants.h"
 #include "day_night.h"
+#include "effects.h"
 #include "entities.h"
+#include "exploration.h"
 #include "framebuffer.h"
 #include "sprite.h"
+#include "weather.h"
 #include "world.h"
 
 namespace wl {
@@ -53,14 +56,29 @@ struct PlayerAppearance {
     int walkFrame = 0;  // 0 idle, 1 and 2 alternate while walking
 };
 
+struct MinimapMarker {
+    double tileX = 0.0;
+    double tileY = 0.0;
+    PropKind kind = PropKind::Tower;
+};
+
+struct MinimapView {
+    const Exploration* exploration = nullptr;
+    std::vector<MinimapMarker> markers;  // landmarks in revealed chunks
+};
+
+// Everything one frame needs. Optional parts are null when absent.
 struct SceneView {
     Camera camera;
     const ChunkSource* chunks = nullptr;
     PlayerAppearance player;
     const std::vector<Creature>* creatures = nullptr;
+    const TrailEffects* trails = nullptr;
+    const WeatherState* weather = nullptr;
+    const MinimapView* minimap = nullptr;
     double interpolationAlpha = 1.0;
     LightingState lighting;
-    double timeSeconds = 0.0;  // drives animation
+    double timeSeconds = 0.0;  // sim time; drives animation and effect ages
 };
 
 class Renderer {
@@ -103,6 +121,9 @@ private:
     void collectCreatures(const SceneView& scene, const ScreenOrigin& origin, int scale);
     void drawItem(Framebuffer& framebuffer, const DrawItem& item) const;
     void drawSteam(Framebuffer& framebuffer, double timeSeconds, int scale) const;
+    void drawTrails(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin, int scale) const;
+    void drawWeather(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin, int scale) const;
+    void drawMinimap(Framebuffer& framebuffer, const SceneView& scene) const;
     void applyLighting(Framebuffer& framebuffer, const LightingState& lighting, int tileSize);
     void drawStars(Framebuffer& framebuffer, const LightingState& lighting, double timeSeconds);
     void rebuildStarsIfNeeded(int width, int height);
@@ -113,6 +134,7 @@ private:
     std::array<std::uint8_t, grainPatternSize * grainPatternSize> grainPattern_{};
 
     SpriteLibrary sprites_;
+    std::array<PackedColor, biomeCount> minimapPalette_{};
 
     // Scratch buffers kept between frames to avoid allocating every frame.
     std::vector<std::uint8_t> waterMask_;     // 1 where the pixel shows water

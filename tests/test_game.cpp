@@ -55,6 +55,58 @@ TEST_CASE("walking around keeps the player on walkable ground", "[game]") {
     requireRegionLoaded(game);
 }
 
+TEST_CASE("standing in a biome announces it once and records it in the journal", "[game][journal]") {
+    Game game;
+    runFrames(game, 30);  // half a second: too soon to announce
+    for (const GameEvent& event : game.takeEvents()) REQUIRE(event.type != GameEventType::BiomeEntered);
+
+    runFrames(game, 90);
+    const std::vector<GameEvent> events = game.takeEvents();
+    int announcements = 0;
+    bool journalChanged = false;
+    for (const GameEvent& event : events) {
+        if (event.type == GameEventType::BiomeEntered) ++announcements;
+        if (event.type == GameEventType::JournalChanged) journalChanged = true;
+    }
+    REQUIRE(announcements == 1);
+    REQUIRE(journalChanged);
+    // A landmark might also be in sight of spawn, so count biome entries only.
+    int biomeEntries = 0;
+    for (const JournalEntry& entry : game.journal().entries()) {
+        if (entry.category == JournalCategory::Biome) ++biomeEntries;
+    }
+    REQUIRE(biomeEntries == 1);
+    REQUIRE(game.takeSaveRequest());        // a new journal entry asks for a save
+    REQUIRE_FALSE(game.takeSaveRequest());  // and only once
+
+    // Staying put doesn't repeat the banner.
+    runFrames(game, 120);
+    for (const GameEvent& event : game.takeEvents()) REQUIRE(event.type != GameEventType::BiomeEntered);
+}
+
+TEST_CASE("the area around the player is revealed on the minimap", "[game][exploration]") {
+    Game game;
+    runFrames(game, 2);
+    const ChunkCoord centre = chunkCoordForTile(static_cast<int>(std::floor(game.player().position().x)),
+                                                static_cast<int>(std::floor(game.player().position().y)));
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) REQUIRE(game.exploration().isRevealed({centre.x + x, centre.y + y}));
+    }
+}
+
+TEST_CASE("autosave asks for a save every so often", "[game][save]") {
+    Game game;
+    runFrames(game, 150);
+    game.takeSaveRequest();  // clear any discovery saves from the start
+    bool requested = false;
+    const int framesPerAutosave = static_cast<int>(constants::autosaveIntervalSeconds / constants::simulationStepSeconds);
+    for (int frame = 0; frame < framesPerAutosave + 5 && !requested; ++frame) {
+        game.advanceFrame(constants::simulationStepSeconds);
+        requested = game.takeSaveRequest();
+    }
+    REQUIRE(requested);
+}
+
 TEST_CASE("every rendered pixel is fully opaque", "[game]") {
     Game game;
     game.resizeDevice(320, 200);

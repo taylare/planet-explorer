@@ -6,7 +6,7 @@ Work in progress. The full README arrives in the final stage.
 
 ## Controls
 
-WASD or arrow keys to walk. On a phone (or with a mouse), press and drag anywhere: the further you drag, the faster you go. Shallow water slows you down; deep ocean is too deep to cross.
+WASD or arrow keys to walk. On a phone (or with a mouse), press and drag anywhere: the further you drag, the faster you go. Shallow water slows you down; deep ocean is too deep to cross. J opens the journal. The globe button shows your seed and lets you visit another world. Progress saves automatically in your browser.
 
 ## Build
 
@@ -43,6 +43,11 @@ A few URL parameters help while developing: `?seed=42` picks a world, `?zoom=1` 
 | `src/props.*` | Trees, rocks, flowers, ruins, campfires and rare landmarks |
 | `src/day_night.*` | Time of day and colour grading |
 | `src/art.*` | All sprite art, defined as text |
+| `src/weather.*` | Regional rain and snow |
+| `src/effects.*` | Footprints and ripples |
+| `src/exploration.*` | Fog of war for the minimap |
+| `src/journal.*` | First discoveries of each biome and landmark |
+| `src/save_state.*` | Save format for localStorage |
 | `src/chunk_cache.*` | Streams chunks around the player, LRU eviction, per-frame time budget |
 | `src/entities.*` | The player and wildlife steering |
 | `src/input.*` | Keys and drag to a movement direction |

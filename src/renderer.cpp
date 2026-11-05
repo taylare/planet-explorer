@@ -17,6 +17,17 @@ constexpr double twoPi = 6.283185307179586;
 // so they don't change with the world seed.
 constexpr std::uint32_t grainPatternSeed = 0x6a09e667u;
 constexpr std::uint32_t starPatternSeed = 0xbb67ae85u;
+constexpr std::uint32_t weatherParticleSeed = 0x3c6ef372u;
+
+// How strongly rain streaks and snowflakes show over the scene.
+constexpr float rainOpacity = 0.5f;
+constexpr float snowOpacity = 0.85f;
+
+// Peak opacity of a fresh ripple, and how squashed it is (top-down ellipse).
+constexpr float rippleOpacity = 0.6f;
+constexpr double rippleSquash = 0.5;
+constexpr int minimumRipplePoints = 8;
+constexpr double ripplePointsPerPixel = 6.0;
 
 // Number of brightness variants per tile: darker, base, base, lighter.
 // Doubling up "base" keeps most pixels at the true colour.
@@ -133,6 +144,20 @@ int grainIndex(std::int64_t worldPixel, int patternSize) {
     return static_cast<int>(static_cast<std::uint64_t>(worldPixel) & static_cast<std::uint64_t>(patternSize - 1));
 }
 
+// Always in [0, divisor), for wrapping weather particles around the screen.
+int floorModulo64(std::int64_t value, int divisor) {
+    const std::int64_t remainder = value % divisor;
+    return static_cast<int>(remainder < 0 ? remainder + divisor : remainder);
+}
+
+PackedColor markerColorFor(PropKind kind) {
+    switch (kind) {
+        case PropKind::Tower: return toPacked(constants::towerMarkerColor);
+        case PropKind::CrystalGrove: return toPacked(constants::crystalMarkerColor);
+        default: return toPacked(constants::hotSpringMarkerColor);
+    }
+}
+
 bool shouldFlipProp(const Prop& prop) {
     // Mirroring half the trees and rocks doubles the visual variety for free.
     // Landmarks and ruins have a "front", so leave them be.
@@ -181,6 +206,179 @@ Renderer::Renderer() {
                 static_cast<std::uint8_t>(hashCoords(grainPatternSeed, x, y) % grainVariantCount);
         }
     }
+
+    // The minimap uses flat biome colours: no shading, it's a map.
+    for (int index = 0; index < biomeCount; ++index) {
+        const Biome biome = static_cast<Biome>(index);
+        if (biome == Biome::DeepOcean) {
+            minimapPalette_[index] = toPacked(constants::deepWaterColor);
+        } else if (biome == Biome::ShallowWater) {
+            minimapPalette_[index] = toPacked(constants::shallowWaterColor);
+        } else {
+            minimapPalette_[index] = packScaled(landColor(biome), 1.0f);
+        }
+    }
+}
+
+void Renderer::drawTrails(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin,
+                          int scale) const {
+    using namespace constants;
+    const TrailEffects& trails = *scene.trails;
+
+    for (const Footprint& footprint : trails.footprints()) {
+        const double age = scene.timeSeconds - footprint.bornSeconds;
+        if (age < 0.0 || age > footprintLifetimeSeconds) continue;
+        // Fresh prints are darkest and fade back into the ground.
+        const float freshness = static_cast<float>(1.0 - age / footprintLifetimeSeconds);
+        const float factor = 1.0f - (1.0f - footprintDarkening) * freshness;
+        const int x = worldToScreenX(origin, footprint.tileX);
+        const int y = worldToScreenY(origin, footprint.tileY);
+        for (int offsetY = 0; offsetY < scale; ++offsetY) {
+            for (int offsetX = 0; offsetX < scale; ++offsetX) darkenPixel(framebuffer, x + offsetX, y + offsetY, factor);
+        }
+    }
+
+    for (const Ripple& ripple : trails.ripples()) {
+        const double age = scene.timeSeconds - ripple.bornSeconds;
+        if (age < 0.0 || age > rippleLifetimeSeconds) continue;
+        const double progress = age / rippleLifetimeSeconds;
+        const double radius = progress * rippleMaxRadiusInTiles * origin.tileSizeInPixels;
+        const float opacity = rippleOpacity * static_cast<float>(1.0 - progress);
+        const int centreX = worldToScreenX(origin, ripple.tileX);
+        const int centreY = worldToScreenY(origin, ripple.tileY);
+        const int points = std::max(minimumRipplePoints, static_cast<int>(radius * ripplePointsPerPixel));
+        for (int point = 0; point < points; ++point) {
+            const double angle = twoPi * point / points;
+            blendPixel(framebuffer, centreX + static_cast<int>(std::lround(std::cos(angle) * radius)),
+                       centreY + static_cast<int>(std::lround(std::sin(angle) * radius * rippleSquash)), rippleColor,
+                       opacity);
+        }
+    }
+}
+
+void Renderer::drawWeather(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin,
+                           int scale) const {
+    using namespace constants;
+    const WeatherState& weather = *scene.weather;
+    if (weather.kind == Precipitation::None || weather.intensity <= 0.0) return;
+
+    const int width = framebuffer.width();
+    const int height = framebuffer.height();
+    const bool raining = weather.kind == Precipitation::Rain;
+    const int particleCount =
+        static_cast<int>(weather.intensity * (raining ? maxRainParticles : maxSnowParticles));
+    const double time = scene.timeSeconds;
+    const double rainSlant = rainWindPixelsPerSecond / rainFallPixelsPerSecond;
+
+    // Particles have no state: each one's position is a pure function of its
+    // index and the time. They're anchored to world pixels and wrapped around
+    // the screen, so they stay put in the world as the camera moves.
+    for (int index = 0; index < particleCount; ++index) {
+        const std::uint32_t baseHash = hashCoords(weatherParticleSeed, index, 0);
+        const double startX = hashToUnitFloat(baseHash) * width;
+        const double startY = hashToUnitFloat(mixBits32(baseHash + 1)) * height;
+        const double speedScale = 0.75 + 0.5 * hashToUnitFloat(mixBits32(baseHash + 2));
+
+        if (raining) {
+            const double worldX = startX + rainWindPixelsPerSecond * time * speedScale;
+            const double worldY = startY + rainFallPixelsPerSecond * time * speedScale;
+            const int screenX = floorModulo64(static_cast<std::int64_t>(std::floor(worldX)) - origin.leftWorldPixel, width);
+            const int screenY = floorModulo64(static_cast<std::int64_t>(std::floor(worldY)) - origin.topWorldPixel, height);
+            // A short streak trailing behind the drop.
+            for (int step = 0; step < rainStreakLengthInPixels * scale; ++step) {
+                blendPixel(framebuffer, screenX - static_cast<int>(std::lround(step * rainSlant)), screenY - step,
+                           rainColor, rainOpacity);
+            }
+        } else {
+            const double swayPhase = hashToUnitFloat(mixBits32(baseHash + 3)) * twoPi;
+            const double worldX = startX + std::sin(time * snowSwaySpeed + swayPhase) * snowSwayPixels * scale;
+            const double worldY = startY + snowFallPixelsPerSecond * time * speedScale;
+            const int screenX = floorModulo64(static_cast<std::int64_t>(std::floor(worldX)) - origin.leftWorldPixel, width);
+            const int screenY = floorModulo64(static_cast<std::int64_t>(std::floor(worldY)) - origin.topWorldPixel, height);
+            for (int offsetY = 0; offsetY < scale; ++offsetY) {
+                for (int offsetX = 0; offsetX < scale; ++offsetX) {
+                    blendPixel(framebuffer, screenX + offsetX, screenY + offsetY, snowflakeColor, snowOpacity);
+                }
+            }
+        }
+    }
+}
+
+void Renderer::drawMinimap(Framebuffer& framebuffer, const SceneView& scene) const {
+    using namespace constants;
+    const MinimapView& view = *scene.minimap;
+    if (!view.exploration) return;
+
+    const int width = framebuffer.width();
+    const int height = framebuffer.height();
+    const int size = std::min(minimapSizeInPixels, std::min(width, height) - 2 * minimapMarginInPixels);
+    constexpr int smallestUsefulSize = 16;
+    if (size < smallestUsefulSize) return;
+
+    const int left = minimapMarginInPixels;
+    const int top = minimapMarginInPixels;
+    const int half = size / 2;
+    const int centreTileX = static_cast<int>(std::floor(scene.player.tileX));
+    const int centreTileY = static_cast<int>(std::floor(scene.player.tileY));
+    const PackedColor fog = toPacked(minimapFogColor);
+
+    // Same trick as the terrain: neighbouring pixels share a chunk, so cache the lookup.
+    ChunkCoord cachedCoord{};
+    const MinimapSummary* cachedSummary = nullptr;
+    bool hasCached = false;
+
+    for (int pixelY = 0; pixelY < size; ++pixelY) {
+        const int tileY = centreTileY + (pixelY - half) * minimapTilesPerPixel;
+        PackedColor* row = &framebuffer.at(0, top + pixelY);
+        for (int pixelX = 0; pixelX < size; ++pixelX) {
+            const int tileX = centreTileX + (pixelX - half) * minimapTilesPerPixel;
+            const ChunkCoord coord = chunkCoordForTile(tileX, tileY);
+            if (!hasCached || coord != cachedCoord) {
+                cachedCoord = coord;
+                cachedSummary = view.exploration->isRevealed(coord) ? view.exploration->summary(coord) : nullptr;
+                hasCached = true;
+            }
+
+            PackedColor color = fog;
+            if (cachedSummary) {
+                const int summaryX = floorModulo(tileX, chunkSizeInTiles) / minimapTilesPerPixel;
+                const int summaryY = floorModulo(tileY, chunkSizeInTiles) / minimapTilesPerPixel;
+                color = minimapPalette_[static_cast<int>((*cachedSummary)[summaryY * minimapSummarySide + summaryX])];
+            }
+            row[left + pixelX] = color;
+        }
+    }
+
+    // Thin frame around the map.
+    const PackedColor border = toPacked(minimapBorderColor);
+    for (int offset = -1; offset <= size; ++offset) {
+        framebuffer.setPixelClipped(left + offset, top - 1, border);
+        framebuffer.setPixelClipped(left + offset, top + size, border);
+        framebuffer.setPixelClipped(left - 1, top + offset, border);
+        framebuffer.setPixelClipped(left + size, top + offset, border);
+    }
+
+    const auto drawDot = [&](int x, int y, PackedColor color) {
+        for (int offsetY = 0; offsetY < 2; ++offsetY) {
+            for (int offsetX = 0; offsetX < 2; ++offsetX) {
+                const int dotX = x + offsetX;
+                const int dotY = y + offsetY;
+                if (dotX >= left && dotX < left + size && dotY >= top && dotY < top + size) {
+                    framebuffer.at(dotX, dotY) = color;
+                }
+            }
+        }
+    };
+
+    for (const MinimapMarker& marker : view.markers) {
+        const int markerX = left + half + static_cast<int>(std::floor((marker.tileX - centreTileX) / minimapTilesPerPixel));
+        const int markerY = top + half + static_cast<int>(std::floor((marker.tileY - centreTileY) / minimapTilesPerPixel));
+        drawDot(markerX, markerY, markerColorFor(marker.kind));
+    }
+
+    // Blinking player dot so it's easy to spot against white snow.
+    const double blinkPhase = scene.timeSeconds * minimapBlinkRate;
+    if (blinkPhase - std::floor(blinkPhase) < 0.6) drawDot(left + half - 1, top + half - 1, toPacked(minimapPlayerColor));
 }
 
 void Renderer::drawTerrain(Framebuffer& framebuffer, const Camera& camera, const ChunkSource& chunks,
@@ -523,6 +721,7 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
     const int scale = std::max(1, camera.tileSizeInPixels / constants::spriteBaseTileSizeInPixels);
 
     drawTerrain(framebuffer, camera, *scene.chunks, scene.timeSeconds);
+    if (scene.trails) drawTrails(framebuffer, scene, origin, scale);
 
     drawItems_.clear();
     lights_.clear();
@@ -553,8 +752,12 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
     for (const DrawItem& item : drawItems_) drawItem(framebuffer, item);
 
     drawSteam(framebuffer, scene.timeSeconds, scale);
+    if (scene.weather) drawWeather(framebuffer, scene, origin, scale);
     applyLighting(framebuffer, scene.lighting, camera.tileSizeInPixels);
     drawStars(framebuffer, scene.lighting, scene.timeSeconds);
+
+    // The map is UI, so it goes on last and isn't darkened by night.
+    if (scene.minimap) drawMinimap(framebuffer, scene);
 }
 
 }  // namespace wl

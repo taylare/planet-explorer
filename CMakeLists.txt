@@ -22,15 +22,20 @@ add_library(wanderlight_core STATIC
   src/art.cpp
   src/chunk_cache.cpp
   src/day_night.cpp
+  src/effects.cpp
   src/entities.cpp
+  src/exploration.cpp
   src/fixed_timestep.cpp
   src/framebuffer.cpp
   src/game.cpp
   src/input.cpp
+  src/journal.cpp
   src/noise.cpp
   src/props.cpp
   src/renderer.cpp
+  src/save_state.cpp
   src/sprite.cpp
+  src/weather.cpp
   src/world.cpp
 )
 target_include_directories(wanderlight_core PUBLIC src)
