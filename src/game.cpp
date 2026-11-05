@@ -34,7 +34,8 @@ Game::Game(WorldSeed seed)
     : world_(seed),
       chunkCache_(world_, constants::chunkCacheCapacityInChunks),
       clock_(constants::simulationStepSeconds, constants::maxSimulationStepsPerFrame,
-             constants::maxFrameDeltaSeconds) {
+             constants::maxFrameDeltaSeconds),
+      dayNight_(constants::startingTimeOfDay) {
     int spawnTileX = 0;
     int spawnTileY = 0;
     world_.findSpawnTile(spawnTileX, spawnTileY);
@@ -71,14 +72,18 @@ void Game::setDrag(bool active, double offsetXInCssPixels, double offsetYInCssPi
 
 void Game::releaseAllInput() { input_ = InputState{}; }
 
+ChunkCoord Game::playerChunk() const {
+    const Vec2& position = player_.position();
+    return chunkCoordForTile(static_cast<int>(std::floor(position.x)), static_cast<int>(std::floor(position.y)));
+}
+
 ChunkRegion Game::requiredChunkRegion() const {
     const double halfWidthInTiles = framebuffer_.width() / (2.0 * tileSizeInPixels_);
     const double halfHeightInTiles = framebuffer_.height() / (2.0 * tileSizeInPixels_);
-    const Vec2& position = player_.position();
-    const ChunkCoord centre =
-        chunkCoordForTile(static_cast<int>(std::floor(position.x)), static_cast<int>(std::floor(position.y)));
-    return ChunkRegion::around(centre, chunkRadiusCovering(halfWidthInTiles),
-                               chunkRadiusCovering(halfHeightInTiles));
+    // Wildlife lives a little past the screen too, so make sure its chunks are loaded.
+    const int radiusX = std::max(chunkRadiusCovering(halfWidthInTiles), constants::wildlifeSimulationRadiusInChunks);
+    const int radiusY = std::max(chunkRadiusCovering(halfHeightInTiles), constants::wildlifeSimulationRadiusInChunks);
+    return ChunkRegion::around(playerChunk(), radiusX, radiusY);
 }
 
 void Game::streamChunks(double budgetMs) {
@@ -87,11 +92,7 @@ void Game::streamChunks(double budgetMs) {
         static_cast<std::size_t>(region.chunkCount()) * cacheCapacityPerRequiredChunk;
     chunkCache_.setCapacity(
         std::max(static_cast<std::size_t>(constants::chunkCacheCapacityInChunks), neededCapacity));
-
-    const Vec2& position = player_.position();
-    const ChunkCoord centre =
-        chunkCoordForTile(static_cast<int>(std::floor(position.x)), static_cast<int>(std::floor(position.y)));
-    lastStreamingStats_ = chunkCache_.update(region, centre, budgetMs);
+    lastStreamingStats_ = chunkCache_.update(region, playerChunk(), budgetMs);
 }
 
 void Game::advanceFrame(double realDeltaSeconds) {
@@ -106,7 +107,12 @@ void Game::advanceFrame(double realDeltaSeconds) {
 
 void Game::simulateStep(double stepSeconds) {
     simulatedSeconds_ += stepSeconds;
+    dayNight_.advance(stepSeconds);
     player_.update(computeMoveIntent(input_), chunkCache_, stepSeconds);
+
+    const ChunkRegion wildlifeRegion = ChunkRegion::around(
+        playerChunk(), constants::wildlifeSimulationRadiusInChunks, constants::wildlifeSimulationRadiusInChunks);
+    wildlife_.update(wildlifeRegion, world_.seed(), chunkCache_, player_.position(), stepSeconds);
 
     previousCameraPosition_ = cameraPosition_;
     const double follow = 1.0 - std::exp(-constants::cameraFollowSharpness * stepSeconds);
@@ -114,22 +120,26 @@ void Game::simulateStep(double stepSeconds) {
 }
 
 void Game::render(double interpolationAlpha) {
+    SceneView scene;
     const Vec2 cameraView = lerp(previousCameraPosition_, cameraPosition_, interpolationAlpha);
-    Camera camera;
-    camera.centerTileX = cameraView.x;
-    camera.centerTileY = cameraView.y;
-    camera.tileSizeInPixels = tileSizeInPixels_;
-
-    renderer_.drawTerrain(framebuffer_, camera, chunkCache_);
+    scene.camera.centerTileX = cameraView.x;
+    scene.camera.centerTileY = cameraView.y;
+    scene.camera.tileSizeInPixels = tileSizeInPixels_;
+    scene.chunks = &chunkCache_;
 
     const Vec2 playerView = player_.interpolatedPosition(interpolationAlpha);
-    PlayerAppearance appearance;
-    appearance.tileX = playerView.x;
-    appearance.tileY = playerView.y;
-    appearance.facingLeft = player_.isFacingLeft();
-    appearance.wading = player_.isWading();
-    appearance.walkFrame = walkFrameFor(player_);
-    renderer_.drawPlayer(framebuffer_, camera, appearance);
+    scene.player.tileX = playerView.x;
+    scene.player.tileY = playerView.y;
+    scene.player.facingLeft = player_.isFacingLeft();
+    scene.player.wading = player_.isWading();
+    scene.player.walkFrame = walkFrameFor(player_);
+
+    scene.creatures = &wildlife_.creatures();
+    scene.interpolationAlpha = interpolationAlpha;
+    scene.lighting = dayNight_.lighting();
+    scene.timeSeconds = simulatedSeconds_;
+
+    renderer_.drawFrame(framebuffer_, scene);
 }
 
 }  // namespace wl

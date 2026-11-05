@@ -19,13 +19,16 @@ option(WANDERLIGHT_BUILD_TESTS "Build the native unit tests" ${WANDERLIGHT_TESTS
 
 # --- Core library: all game logic, no Emscripten ---
 add_library(wanderlight_core STATIC
+  src/art.cpp
   src/chunk_cache.cpp
+  src/day_night.cpp
   src/entities.cpp
   src/fixed_timestep.cpp
   src/framebuffer.cpp
   src/game.cpp
   src/input.cpp
   src/noise.cpp
+  src/props.cpp
   src/renderer.cpp
   src/sprite.cpp
   src/world.cpp

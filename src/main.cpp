@@ -25,6 +25,12 @@ EM_JS(int, jsReadUrlZoom, (int fallback), {
     const value = parseInt(new URLSearchParams(location.search).get('zoom'), 10);
     return Number.isFinite(value) ? value : fallback;
 });
+// ?time= is the time of day, 0 to 1 (0 midnight, 0.5 noon). Negative means not set.
+EM_JS(double, jsReadUrlTimeOfDay, (), {
+    const raw = new URLSearchParams(location.search).get('time');
+    const value = raw === null ? NaN : Number(raw);
+    return Number.isFinite(value) ? value : -1;
+});
 
 extern "C" {
 
@@ -64,6 +70,8 @@ int main() {
     const auto seed = static_cast<wl::WorldSeed>(jsReadUrlSeed(wl::constants::defaultWorldSeed));
     activeGame = std::make_unique<wl::Game>(seed);
     activeGame->setTileSizeInPixels(jsReadUrlZoom(wl::constants::defaultTileSizeInPixels));
+    const double urlTimeOfDay = jsReadUrlTimeOfDay();
+    if (urlTimeOfDay >= 0.0) activeGame->setTimeOfDay(urlTimeOfDay);
 
     jsInitBridge();  // hooks up resize and input, and sends the real canvas size
     lastFrameTimeMs = emscripten_get_now();

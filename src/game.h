@@ -3,6 +3,7 @@
 #pragma once
 
 #include "chunk_cache.h"
+#include "day_night.h"
 #include "entities.h"
 #include "fixed_timestep.h"
 #include "framebuffer.h"
@@ -20,6 +21,7 @@ public:
     void resizeDevice(int deviceWidthInPixels, int deviceHeightInPixels);
 
     void setTileSizeInPixels(int tileSizeInPixels);
+    void setTimeOfDay(double timeOfDay) { dayNight_.setTimeOfDay(timeOfDay); }
 
     void setDirectionHeld(Direction direction, bool held);
     void setDrag(bool active, double offsetXInCssPixels, double offsetYInCssPixels);
@@ -32,6 +34,8 @@ public:
     const FramebufferLayout& layout() const { return layout_; }
     const World& world() const { return world_; }
     const Player& player() const { return player_; }
+    const Wildlife& wildlife() const { return wildlife_; }
+    const DayNightCycle& dayNight() const { return dayNight_; }
     const ChunkCache& chunkCache() const { return chunkCache_; }
     const StreamingStats& lastStreamingStats() const { return lastStreamingStats_; }
     double simulatedSeconds() const { return simulatedSeconds_; }
@@ -40,6 +44,7 @@ public:
     ChunkRegion requiredChunkRegion() const;
 
 private:
+    ChunkCoord playerChunk() const;
     void streamChunks(double budgetMs);
     void simulateStep(double stepSeconds);
     void render(double interpolationAlpha);
@@ -55,6 +60,8 @@ private:
 
     InputState input_;
     Player player_;
+    Wildlife wildlife_;
+    DayNightCycle dayNight_;
 
     // Camera position is simulated (it eases after the player) and
     // interpolated like the player for smooth rendering.

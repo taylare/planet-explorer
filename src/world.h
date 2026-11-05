@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "constants.h"
 #include "noise.h"
@@ -75,6 +76,42 @@ constexpr int chunkOriginTile(int chunkAxisCoord) {
     return chunkAxisCoord * constants::chunkSizeInTiles;
 }
 
+// --- Props ---
+
+enum class PropKind : std::uint8_t {
+    BroadleafTree,
+    PineTree,
+    AcaciaTree,
+    Cactus,
+    Rock,
+    Flower,
+    Ruins,
+    Campfire,
+    // Rare landmarks, at most one per landmark region.
+    Tower,
+    CrystalGrove,
+    HotSpring,
+    Count  // keep last
+};
+
+inline constexpr int propKindCount = static_cast<int>(PropKind::Count);
+
+std::string_view propKindName(PropKind kind);
+bool isRareLandmark(PropKind kind);
+
+struct Prop {
+    float tileX = 0.0f;  // anchor point (the base, where it meets the ground)
+    float tileY = 0.0f;
+    PropKind kind = PropKind::Rock;
+    Biome groundBiome = Biome::Grassland;  // picks the look, e.g. snowy pine
+    std::uint8_t variant = 0;              // random per prop, e.g. flower colour
+
+    bool operator==(const Prop& other) const {
+        return tileX == other.tileX && tileY == other.tileY && kind == other.kind &&
+               groundBiome == other.groundBiome && variant == other.variant;
+    }
+};
+
 // --- Chunks ---
 
 inline constexpr int tilesPerChunk = constants::chunkSizeInTiles * constants::chunkSizeInTiles;
@@ -84,6 +121,7 @@ struct Chunk {
     std::array<Biome, tilesPerChunk> biomes{};
     std::array<float, tilesPerChunk> elevations{};
     std::array<float, tilesPerChunk> hillshades{};  // -1 dark to 1 lit
+    std::vector<Prop> props;
 
     static constexpr int indexFor(int localX, int localY) {
         return localY * constants::chunkSizeInTiles + localX;

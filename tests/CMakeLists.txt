@@ -11,13 +11,16 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(wanderlight_tests
   test_biome.cpp
   test_chunk_cache.cpp
+  test_day_night.cpp
   test_entities.cpp
   test_fixed_timestep.cpp
   test_framebuffer.cpp
   test_game.cpp
   test_input.cpp
   test_noise.cpp
+  test_props.cpp
   test_renderer.cpp
+  test_wildlife.cpp
   test_world.cpp
 )
 target_link_libraries(wanderlight_tests PRIVATE wanderlight_core Catch2::Catch2WithMain)

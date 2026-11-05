@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "hash.h"
+#include "props.h"
 
 namespace wl {
 
@@ -231,6 +232,8 @@ std::unique_ptr<Chunk> World::generateChunk(ChunkCoord coord) const {
             chunk->hillshades[tileIndex] = static_cast<float>(hillshade);
         }
     }
+
+    scatterProps(*this, *chunk);
     return chunk;
 }
 

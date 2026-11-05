@@ -208,4 +208,205 @@ inline constexpr float spriteShadowStrength = 0.6f;
 // Sprites are drawn at this tile size at 1x, then scaled up in whole steps.
 inline constexpr int spriteBaseTileSizeInPixels = 8;
 
+// Prop and landmark sprites
+inline constexpr Rgb8 leafLightColor{96, 150, 76};
+inline constexpr Rgb8 leafDarkColor{58, 104, 56};
+inline constexpr Rgb8 forestLeafLightColor{62, 118, 66};
+inline constexpr Rgb8 forestLeafDarkColor{34, 76, 46};
+inline constexpr Rgb8 pineLightColor{58, 110, 84};
+inline constexpr Rgb8 pineDarkColor{30, 70, 58};
+inline constexpr Rgb8 snowOnBranchColor{226, 234, 242};
+inline constexpr Rgb8 acaciaLeafColor{128, 140, 66};
+inline constexpr Rgb8 acaciaLeafDarkColor{92, 104, 48};
+inline constexpr Rgb8 cactusLightColor{96, 150, 92};
+inline constexpr Rgb8 cactusDarkColor{60, 108, 70};
+inline constexpr Rgb8 trunkColor{92, 66, 50};
+inline constexpr Rgb8 rockLightColor{150, 146, 142};
+inline constexpr Rgb8 rockDarkColor{98, 94, 96};
+inline constexpr Rgb8 sandstoneLightColor{196, 160, 112};
+inline constexpr Rgb8 sandstoneDarkColor{150, 118, 82};
+inline constexpr Rgb8 ruinStoneLightColor{170, 164, 150};
+inline constexpr Rgb8 ruinStoneDarkColor{116, 110, 104};
+inline constexpr Rgb8 mossColor{88, 120, 70};
+inline constexpr Rgb8 flameOuterColor{240, 128, 50};
+inline constexpr Rgb8 flameInnerColor{255, 222, 120};
+inline constexpr Rgb8 firewoodColor{84, 56, 40};
+inline constexpr Rgb8 towerStoneLightColor{140, 134, 150};
+inline constexpr Rgb8 towerStoneDarkColor{90, 84, 104};
+inline constexpr Rgb8 towerWindowColor{255, 206, 120};
+inline constexpr Rgb8 crystalLightColor{150, 240, 240};
+inline constexpr Rgb8 crystalDarkColor{70, 150, 176};
+inline constexpr Rgb8 crystalAccentColor{190, 150, 240};
+inline constexpr Rgb8 springWaterLightColor{120, 214, 214};
+inline constexpr Rgb8 springWaterDarkColor{70, 168, 182};
+inline constexpr Rgb8 steamColor{236, 240, 244};
+inline constexpr Rgb8 flowerStemColor{70, 120, 60};
+inline constexpr Rgb8 dryGrassColor{196, 176, 110};
+
+// Flower petals pick one of these per flower.
+inline constexpr Rgb8 flowerPetalColors[] = {
+    {236, 226, 240}, {240, 196, 90}, {220, 120, 150}, {150, 140, 230}};
+inline constexpr Rgb8 flowerCentreColor{250, 220, 110};
+
+// Creature sprites
+inline constexpr Rgb8 deerBodyColor{150, 104, 70};
+inline constexpr Rgb8 deerBellyColor{206, 176, 140};
+inline constexpr Rgb8 antlerColor{214, 196, 168};
+inline constexpr Rgb8 rabbitBodyColor{170, 150, 128};
+inline constexpr Rgb8 rabbitTailColor{240, 236, 230};
+inline constexpr Rgb8 crabShellColor{210, 92, 72};
+inline constexpr Rgb8 crabClawColor{236, 130, 98};
+inline constexpr Rgb8 lizardBodyColor{120, 150, 80};
+inline constexpr Rgb8 lizardPatternColor{170, 140, 70};
+inline constexpr Rgb8 goatBodyColor{214, 208, 196};
+inline constexpr Rgb8 goatHornColor{110, 98, 90};
+inline constexpr Rgb8 foxBodyColor{236, 240, 246};
+inline constexpr Rgb8 foxShadeColor{176, 188, 204};
+inline constexpr Rgb8 creatureEyeColor{24, 20, 24};
+inline constexpr Rgb8 creatureLegColor{70, 54, 46};
+
+// --- Props (trees, rocks, flowers, ruins, campfires) ---
+
+// Props sit on a grid of cells this many tiles wide, at most one per cell.
+// Must divide chunkSizeInTiles so cells never straddle a chunk edge.
+inline constexpr int propCellSizeInTiles = 2;
+
+// Each prop is jittered inside its cell but kept this far from the cell
+// edge. Two props can then never be closer than twice this (a jittered grid
+// with a guaranteed minimum spacing, like a cheap Poisson disc).
+inline constexpr double propCellMarginInTiles = 0.35;
+
+// Per biome: chance a cell gets a prop, then relative weights for each kind.
+struct PropMix {
+    double density;
+    double tree, rock, flower, ruins, campfire;
+};
+inline constexpr PropMix grasslandPropMix{0.10, 0.25, 0.10, 0.62, 0.015, 0.015};
+inline constexpr PropMix forestPropMix{0.38, 0.86, 0.05, 0.07, 0.01, 0.01};
+inline constexpr PropMix desertPropMix{0.03, 0.55, 0.40, 0.0, 0.05, 0.0};
+inline constexpr PropMix savannaPropMix{0.06, 0.35, 0.18, 0.43, 0.01, 0.03};
+inline constexpr PropMix tundraPropMix{0.08, 0.45, 0.35, 0.18, 0.01, 0.01};
+inline constexpr PropMix snowPropMix{0.03, 0.60, 0.40, 0.0, 0.0, 0.0};
+inline constexpr PropMix mountainPropMix{0.06, 0.15, 0.85, 0.0, 0.0, 0.0};
+inline constexpr PropMix beachPropMix{0.015, 0.0, 0.70, 0.0, 0.0, 0.30};
+
+// --- Rare landmarks (tower, crystal grove, hot spring) ---
+
+// The world is split into square regions this many chunks wide. Each region
+// holds at most one rare landmark, which keeps them rare and spread out.
+inline constexpr int landmarkRegionSizeInChunks = 6;
+inline constexpr double landmarkChancePerRegion = 0.6;
+
+// Spots tried per region to find ground that suits the landmark.
+inline constexpr int landmarkPlacementAttempts = 8;
+
+// Ordinary props are kept clear of a landmark by this radius.
+inline constexpr double landmarkClearingRadiusInTiles = 3.0;
+
+// --- Day and night ---
+
+// One full day in real seconds. Long enough that night feels like a phase, not a flicker.
+inline constexpr double dayLengthSeconds = 480.0;
+
+// 0 is midnight, 0.5 is noon. Start in the morning for a friendly first look.
+inline constexpr double startingTimeOfDay = 0.32;
+
+// Colour grade through the day. Each key is a time, an RGB multiplier and how
+// "night" it is (0 to 1, which drives lights and stars). Times must rise, and
+// the last key must match the first so the cycle wraps without a jump.
+struct LightKeyframe {
+    double timeOfDay;
+    float red, green, blue;
+    float night;
+};
+inline constexpr LightKeyframe lightKeyframes[] = {
+    {0.00, 0.22f, 0.26f, 0.46f, 1.0f},  // midnight
+    {0.20, 0.25f, 0.28f, 0.48f, 1.0f},  // before dawn
+    {0.26, 0.86f, 0.62f, 0.64f, 0.4f},  // dawn
+    {0.32, 1.00f, 0.95f, 0.88f, 0.0f},  // morning
+    {0.50, 1.00f, 1.00f, 1.00f, 0.0f},  // noon
+    {0.68, 1.00f, 0.93f, 0.82f, 0.0f},  // afternoon
+    {0.74, 0.96f, 0.62f, 0.50f, 0.3f},  // sunset
+    {0.80, 0.30f, 0.30f, 0.54f, 0.9f},  // dusk
+    {1.00, 0.22f, 0.26f, 0.46f, 1.0f},  // midnight again
+};
+
+// --- Lights (only visible as it gets dark) ---
+
+struct LightSettings {
+    double radiusInTiles;
+    float red, green, blue;
+    float intensity;
+};
+inline constexpr LightSettings lanternLight{4.5, 1.0f, 0.82f, 0.5f, 0.95f};
+inline constexpr LightSettings campfireLight{5.5, 1.0f, 0.6f, 0.3f, 1.1f};
+inline constexpr LightSettings crystalLight{4.0, 0.45f, 0.95f, 1.0f, 0.9f};
+inline constexpr LightSettings towerWindowLight{2.0, 1.0f, 0.8f, 0.45f, 0.8f};
+
+// How much fires flicker (fraction of intensity) and how fast.
+inline constexpr float fireFlickerAmount = 0.25f;
+inline constexpr double fireFlickerSpeed = 3.0;
+
+// Lights can push a pixel a bit past its daytime colour, which gives a glow.
+inline constexpr float maxLitBrightness = 1.15f;
+
+// --- Stars and water ---
+
+// Stars reflect in water at night. Fraction of screen pixels that hold a star.
+inline constexpr double starDensity = 0.003;
+inline constexpr double starTwinkleSpeed = 2.2;
+inline constexpr Rgb8 starColor{236, 240, 255};
+
+// Water texture drifts this many pixels per second, and wobbles row by row.
+inline constexpr double waterDriftPixelsPerSecond = 1.5;
+inline constexpr double waterWobbleSpeed = 1.3;
+inline constexpr double waterWobbleRowFrequency = 0.35;
+inline constexpr double waterWobblePixels = 1.5;
+
+// --- Animation ---
+
+inline constexpr double campfireFramesPerSecond = 6.0;
+inline constexpr int steamParticleCount = 7;
+inline constexpr double steamRiseSeconds = 2.5;  // one particle's life
+inline constexpr int steamRiseHeightInPixels = 14;
+
+// --- Wildlife ---
+
+// Creatures live in chunks within this many chunks of the player. This is
+// wider than the screen, so they appear and vanish out of sight.
+inline constexpr int wildlifeSimulationRadiusInChunks = 2;
+
+inline constexpr int creatureSpawnAttemptsPerChunk = 3;
+inline constexpr double creatureSpawnChance = 0.35;
+
+// Creatures wander but are pulled back if they stray this far from home.
+inline constexpr double creatureLeashRadiusInTiles = 18.0;
+
+// How fast heading drifts while wandering. Higher is twitchier.
+inline constexpr double creatureWanderJitterRadiansPerSecond = 2.5;
+
+// How quickly creatures turn toward where they want to go.
+inline constexpr double creatureSteeringSharpness = 5.0;
+
+// Creatures alternate between wandering and resting (grazing, sniffing).
+inline constexpr double creatureRestMinSeconds = 2.0;
+inline constexpr double creatureRestMaxSeconds = 6.0;
+inline constexpr double creatureWanderMinSeconds = 3.0;
+inline constexpr double creatureWanderMaxSeconds = 8.0;
+
+// Distance moved per hop of the walk animation.
+inline constexpr double creatureStrideInTiles = 0.3;
+
+struct SpeciesTuning {
+    double walkSpeed;    // tiles per second while wandering
+    double fleeSpeed;    // tiles per second when startled
+    double fleeRadius;   // player distance that startles them, in tiles
+};
+inline constexpr SpeciesTuning deerTuning{1.6, 6.5, 5.0};
+inline constexpr SpeciesTuning rabbitTuning{1.2, 6.0, 3.5};
+inline constexpr SpeciesTuning crabTuning{0.7, 2.2, 2.0};
+inline constexpr SpeciesTuning lizardTuning{1.0, 5.0, 2.5};
+inline constexpr SpeciesTuning goatTuning{1.0, 4.0, 4.0};
+inline constexpr SpeciesTuning foxTuning{1.4, 6.0, 4.5};
+
 }  // namespace wl::constants

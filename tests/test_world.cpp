@@ -11,7 +11,8 @@ constexpr int size = constants::chunkSizeInTiles;
 
 bool chunksIdentical(const Chunk& first, const Chunk& second) {
     return first.coord == second.coord && first.biomes == second.biomes &&
-           first.elevations == second.elevations && first.hillshades == second.hillshades;
+           first.elevations == second.elevations && first.hillshades == second.hillshades &&
+           first.props == second.props;
 }
 }  // namespace
 

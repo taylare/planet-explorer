@@ -30,7 +30,7 @@ python -m http.server -d dist 8000
 
 Then open http://localhost:8000. Opening `index.html` straight from disk won't work because browsers block loading `.wasm` over `file://`.
 
-Two URL parameters help while developing: `?seed=42` picks a world, and `?zoom=1` (1 to 16 pixels per tile, default 8) zooms out to see continent shapes.
+A few URL parameters help while developing: `?seed=42` picks a world, `?zoom=1` (1 to 16 pixels per tile, default 8) zooms out to see continent shapes, and `?time=0.9` sets the time of day (0 midnight, 0.5 noon). Combine them with `&`, for example `?seed=42&time=0.85`.
 
 ## Layout
 
@@ -40,8 +40,11 @@ Two URL parameters help while developing: `?seed=42` picks a world, and `?zoom=1
 | `src/constants.h` | Every tunable number |
 | `src/noise.*` | Simplex noise and fBm, written from scratch |
 | `src/world.*` | Seed, biome lookup, coordinates, chunk generation |
+| `src/props.*` | Trees, rocks, flowers, ruins, campfires and rare landmarks |
+| `src/day_night.*` | Time of day and colour grading |
+| `src/art.*` | All sprite art, defined as text |
 | `src/chunk_cache.*` | Streams chunks around the player, LRU eviction, per-frame time budget |
-| `src/entities.*` | The player: movement, terrain speed, collision |
+| `src/entities.*` | The player and wildlife steering |
 | `src/input.*` | Keys and drag to a movement direction |
 | `src/sprite.*` | Text-defined pixel art sprites |
 | `src/renderer.*` | Draws terrain and sprites into the framebuffer |
