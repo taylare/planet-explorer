@@ -29,6 +29,7 @@ add_executable(wanderlight_tests
   test_save_state.cpp
   test_scanner.cpp
   test_ship.cpp
+  test_sky_events.cpp
   test_suit_power.cpp
   test_weather.cpp
   test_wildlife.cpp

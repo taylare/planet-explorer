@@ -2,6 +2,7 @@
 // main.cpp drives it on the web; tests drive it natively.
 #pragma once
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,7 @@
 #include "renderer.h"
 #include "save_state.h"
 #include "scanner.h"
+#include "sky_events.h"
 #include "suit_power.h"
 #include "upgrades.h"
 #include "weather.h"
@@ -130,6 +132,8 @@ private:
     void applyLandmarkScan(PropKind kind, int tileX, int tileY);
     RechargeSource rechargeSourceNear(const Vec2& position) const;
     void updateSuitPower(double stepSeconds, Biome groundBiome, bool groundKnown);
+    void announceSkyEvents();
+    int currentNightNumber() const;
     void rebuildMinimapMarkers();
     void render(double interpolationAlpha);
 
@@ -165,6 +169,10 @@ private:
     bool nearShip_ = false;
     bool lowPowerWarned_ = false;
     bool emptyPowerWarned_ = false;
+
+    // Sky event announcements: once per storm and once per shower night.
+    Precipitation lastAnnouncedWeather_ = Precipitation::None;
+    int lastAnnouncedShowerNight_ = std::numeric_limits<int>::min();
     MinimapView minimapView_;
 
     // Camera position is simulated (it eases after the player) and

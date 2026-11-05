@@ -15,6 +15,7 @@
 #include "framebuffer.h"
 #include "planet.h"
 #include "scanner.h"
+#include "sky_events.h"
 #include "sprite.h"
 #include "weather.h"
 #include "world.h"
@@ -86,6 +87,13 @@ struct SceneView {
     float headlampStrength = 1.0f;
     float headlampRadiusScale = 1.0f;
 
+    // Sky events. The seed and night number decide the meteor streaks, which are only drawn
+    // when meteorShower is set.
+    bool meteorShower = false;
+    WorldSeed skySeed = 0;
+    int nightNumber = 0;
+    float lightningFlash = 0.0f;  // 0 to 1, from lightningFlashAt
+
     const ScanStatus* scan = nullptr;       // reticle while scanning; null draws none
     const PlanetProfile* planet = nullptr;  // palette, moons and aurora; null draws the default look
     double interpolationAlpha = 1.0;
@@ -155,6 +163,9 @@ private:
                    double timeSeconds) const;
     void drawAurora(Framebuffer& framebuffer, const PlanetProfile& planet, const LightingState& lighting,
                     double timeSeconds) const;
+    void drawDustStorm(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin, int scale) const;
+    void drawMeteors(Framebuffer& framebuffer, const SceneView& scene) const;
+    void drawLightningFlash(Framebuffer& framebuffer, float flash) const;
     void rebuildMinimapPalette();
     void rebuildStarsIfNeeded(int width, int height);
 

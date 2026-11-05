@@ -16,7 +16,8 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 - Rare landmarks to find: lone towers, crystal groves and hot springs
 - Deer, rabbits, crabs, lizards, mountain goats and snow foxes that wander, rest and shy away from you
 - A day and night cycle, with headlamp light, flickering campfires, and stars and moons reflected in the water
-- Rain over wet ground and snow over cold ground, drifting in as weather fronts
+- Rain over wet ground, snow over cold ground and dust storms over hot, dry ground, drifting in as weather fronts. Dust takes its colour from the planet's desert, and heavy rain brings lightning
+- Meteor showers on about a third of nights, reflected brightly in the water
 - Footprints in sand and snow, ripples when you wade
 - A minimap that only fills in where you've been
 - A field scanner: hold it near an alien animal to log it. Holding it also makes you creep, so animals stay calm long enough to scan
@@ -129,6 +130,7 @@ All game logic is plain C++ with no browser code, so the same code runs in the n
 | `src/chunk_cache.*` | Chunk streaming, time budget and LRU eviction |
 | `src/entities.*` | The player and wildlife steering |
 | `src/weather.*`, `src/day_night.*` | Weather fronts, time of day and colour grading |
+| `src/sky_events.*` | Meteor showers and lightning, as pure functions of seed and time |
 | `src/effects.*` | Footprints and ripples |
 | `src/exploration.*`, `src/journal.*` | Minimap fog of war and discoveries |
 | `src/scanner.*` | The field scanner: target choice, scan progress |

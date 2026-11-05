@@ -40,11 +40,22 @@ WeatherTarget weatherTargetFrom(double cloudNoiseValue, double moisture, double 
 
     WeatherTarget target;
     target.intensity = cloudCover * wetness;
-    if (target.intensity < stoppedIntensity) {
-        target.intensity = 0.0;
+    if (target.intensity >= stoppedIntensity) {
+        target.kind = temperature < snowfallTemperature ? Precipitation::Snow : Precipitation::Rain;
         return target;
     }
-    target.kind = temperature < snowfallTemperature ? Precipitation::Snow : Precipitation::Rain;
+
+    // No rain or snow here. Hot, dry ground under cloud kicks up dust instead.
+    const double dryness = 1.0 - smoothstep(weatherDustMoistureFull, weatherDustMoistureNone, moisture);
+    const double heat = smoothstep(weatherDustTemperatureStart, weatherDustTemperatureFull, temperature);
+    const double dustIntensity = cloudCover * dryness * heat;
+    if (dustIntensity >= stoppedIntensity) {
+        target.kind = Precipitation::DustStorm;
+        target.intensity = dustIntensity;
+        return target;
+    }
+
+    target.intensity = 0.0;
     return target;
 }
 

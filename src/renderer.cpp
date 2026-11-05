@@ -292,6 +292,10 @@ void Renderer::drawWeather(Framebuffer& framebuffer, const SceneView& scene, con
 
     const int width = framebuffer.width();
     const int height = framebuffer.height();
+    if (weather.kind == Precipitation::DustStorm) {
+        drawDustStorm(framebuffer, scene, origin, scale);
+        return;
+    }
     const bool raining = weather.kind == Precipitation::Rain;
     const int particleCount =
         static_cast<int>(weather.intensity * (raining ? maxRainParticles : maxSnowParticles));
@@ -329,6 +333,123 @@ void Renderer::drawWeather(Framebuffer& framebuffer, const SceneView& scene, con
                 }
             }
         }
+    }
+}
+
+// Lightens a colour toward white by a fraction.
+constants::Rgb8 lightened(const constants::Rgb8& color, float fraction) {
+    const auto lift = [fraction](std::uint8_t channel) {
+        return static_cast<std::uint8_t>(channel + (255 - channel) * fraction);
+    };
+    return {lift(color.red), lift(color.green), lift(color.blue)};
+}
+
+// A dust storm: a haze over the whole view that is thickest at the edges, with fast streaks of
+// grit blowing across. Both are tinted from the planet's desert colour so an alien world gets
+// alien dust. Like rain, every speck is a pure function of its index and the time.
+void Renderer::drawDustStorm(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin,
+                             int scale) const {
+    using namespace constants;
+    const double intensity = scene.weather->intensity;
+    const int width = framebuffer.width();
+    const int height = framebuffer.height();
+    const Rgb8 hazeColor = palette_.desert;
+
+    // Haze: mix every pixel toward the haze colour, a little more strongly the further from the middle.
+    const double halfWidth = std::max(width / 2.0, 1.0);
+    const double halfHeight = std::max(height / 2.0, 1.0);
+    for (int y = 0; y < height; ++y) {
+        const double offsetY = (y + 0.5 - halfHeight) / halfHeight;
+        const double edgeY = offsetY * offsetY;
+        for (int x = 0; x < width; ++x) {
+            const double offsetX = (x + 0.5 - halfWidth) / halfWidth;
+            const double edge = std::min(1.0, 0.5 * (offsetX * offsetX + edgeY));
+            const float amount = static_cast<float>(intensity * (dustHazeOpacity + dustVignetteExtraOpacity * edge));
+            PackedColor& pixel = framebuffer.at(x, y);
+            const auto mix = [amount](std::uint8_t from, std::uint8_t to) {
+                return static_cast<std::uint8_t>(from + (to - from) * amount);
+            };
+            pixel = packRgba(mix(channelOf(pixel, 0), hazeColor.red), mix(channelOf(pixel, 8), hazeColor.green),
+                             mix(channelOf(pixel, 16), hazeColor.blue));
+        }
+    }
+
+    // Grit: short horizontal streaks blown by the wind, wobbling a little as they go.
+    const Rgb8 gritColor = lightened(hazeColor, dustParticleLightening);
+    const int particleCount = static_cast<int>(intensity * maxDustParticles);
+    const double time = scene.timeSeconds;
+    for (int index = 0; index < particleCount; ++index) {
+        const std::uint32_t baseHash = hashCoords(weatherParticleSeed + 7u, index, 0);
+        const double startX = hashToUnitFloat(baseHash) * width;
+        const double startY = hashToUnitFloat(mixBits32(baseHash + 1)) * height;
+        const double speedScale = 0.7 + 0.6 * hashToUnitFloat(mixBits32(baseHash + 2));
+        const double wobblePhase = hashToUnitFloat(mixBits32(baseHash + 3)) * twoPi;
+
+        const double worldX = startX + dustWindPixelsPerSecond * time * speedScale;
+        const double worldY = startY + std::sin(time * 2.0 + wobblePhase) * 3.0 * scale;
+        const int screenX = floorModulo64(static_cast<std::int64_t>(std::floor(worldX)) - origin.leftWorldPixel, width);
+        const int screenY = floorModulo64(static_cast<std::int64_t>(std::floor(worldY)) - origin.topWorldPixel, height);
+        for (int step = 0; step < dustStreakLengthInPixels * scale; ++step) {
+            // The streak trails to the right of the head, since the wind blows toward the left.
+            blendPixel(framebuffer, screenX + step, screenY, gritColor, dustParticleOpacity);
+        }
+    }
+}
+
+// Meteors streak across the sky. They are drawn like the moons and stars: bright on water, where
+// the sky is reflected, and only faintly on land.
+void Renderer::drawMeteors(Framebuffer& framebuffer, const SceneView& scene) const {
+    using namespace constants;
+    if (!scene.meteorShower || scene.lighting.nightAmount < meteorMinimumNightAmount) return;
+
+    const int width = framebuffer.width();
+    const int height = framebuffer.height();
+    const double time = scene.timeSeconds;
+    const std::int64_t slot = meteorSlotAt(time);
+    const double timeInSlot = time - meteorSlotStartSeconds(slot);
+
+    for (int index = 0; index < meteorsPerSlot; ++index) {
+        const MeteorStreak streak = meteorStreakFor(scene.skySeed, scene.nightNumber, slot, index);
+        if (!streak.present) continue;
+        const double flightTime = timeInSlot - streak.startOffsetSeconds;
+        if (flightTime < 0.0 || flightTime > meteorDurationSeconds) continue;
+
+        const double progress = flightTime / meteorDurationSeconds;
+        // Fade in and out so the streak does not pop on or off.
+        const float fade = static_cast<float>(std::sin(progress * 3.14159265358979));
+        const double headX = streak.startX * width + streak.directionX * meteorSpeedPixelsPerSecond * flightTime;
+        const double headY = streak.startY * height + streak.directionY * meteorSpeedPixelsPerSecond * flightTime;
+
+        for (int step = 0; step < meteorTailLengthInPixels; ++step) {
+            const int x = static_cast<int>(std::lround(headX - streak.directionX * step));
+            const int y = static_cast<int>(std::lround(headY - streak.directionY * step));
+            if (x < 0 || y < 0 || x >= width || y >= height) continue;
+            const bool overWater = waterMask_.size() == static_cast<std::size_t>(width) * height &&
+                                   waterMask_[static_cast<std::size_t>(y) * width + x] != 0;
+            const float tail = 1.0f - static_cast<float>(step) / meteorTailLengthInPixels;
+            const float opacity = (overWater ? meteorWaterOpacity : meteorLandOpacity) * tail * fade *
+                                  scene.lighting.nightAmount;
+            blendPixel(framebuffer, x, y, meteorColor, opacity);
+            // The head is two pixels wide so it reads as a bright point rather than a hairline.
+            if (step < meteorTailLengthInPixels / 3) blendPixel(framebuffer, x + 1, y, meteorColor, opacity);
+        }
+    }
+}
+
+// Lightning lights the whole scene for an instant: everything is mixed toward a cold white.
+void Renderer::drawLightningFlash(Framebuffer& framebuffer, float flash) const {
+    using namespace constants;
+    if (flash <= 0.0f) return;
+    const float amount = std::clamp(flash, 0.0f, 1.0f) * lightningMaxBlend;
+    const int pixelCount = framebuffer.width() * framebuffer.height();
+    PackedColor* pixels = framebuffer.pixels();
+    const auto mix = [amount](std::uint8_t from, std::uint8_t to) {
+        return static_cast<std::uint8_t>(from + (to - from) * amount);
+    };
+    for (int index = 0; index < pixelCount; ++index) {
+        const PackedColor pixel = pixels[index];
+        pixels[index] = packRgba(mix(channelOf(pixel, 0), lightningColor.red), mix(channelOf(pixel, 8), lightningColor.green),
+                                 mix(channelOf(pixel, 16), lightningColor.blue));
     }
 }
 
@@ -935,6 +1056,8 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
         drawMoons(framebuffer, *scene.planet, scene.lighting, scene.timeSeconds);
         drawAurora(framebuffer, *scene.planet, scene.lighting, scene.timeSeconds);
     }
+    drawMeteors(framebuffer, scene);
+    drawLightningFlash(framebuffer, scene.lightningFlash);
 
     // The reticle is UI too, so it stays readable at night.
     if (scene.scan && scene.scan->hasTarget) drawScanReticle(framebuffer, scene, origin, scale);

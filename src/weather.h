@@ -1,5 +1,6 @@
 // Regional weather. Fronts drift across the world from a slow noise field;
-// wet ground under a front gets rain, cold ground gets snow.
+// wet ground under a front gets rain, cold ground gets snow, and hot, dry
+// ground gets a dust storm.
 #pragma once
 
 #include "entities.h"
@@ -8,7 +9,8 @@
 
 namespace wl {
 
-enum class Precipitation { None, Rain, Snow };
+// DustStorm is not precipitation as such, but it is weather that drifts in and out the same way.
+enum class Precipitation { None, Rain, Snow, DustStorm };
 
 struct WeatherTarget {
     Precipitation kind = Precipitation::None;
@@ -21,7 +23,7 @@ struct WeatherState {
 };
 
 // Pure rule: cloud cover (noise value), ground moisture and temperature in,
-// precipitation out. Kept separate from the noise so it can be tested directly.
+// weather out. Kept separate from the noise so it can be tested directly.
 WeatherTarget weatherTargetFrom(double cloudNoiseValue, double moisture, double temperature);
 
 class WeatherSystem {

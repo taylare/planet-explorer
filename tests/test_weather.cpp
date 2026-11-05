@@ -13,6 +13,7 @@ constexpr double wet = 0.9;
 constexpr double dry = 0.1;
 constexpr double warm = 0.6;
 constexpr double cold = 0.1;
+constexpr double scorching = 0.8;
 }  // namespace
 
 TEST_CASE("wet ground under cloud gets rain, cold ground gets snow", "[weather]") {
@@ -24,10 +25,60 @@ TEST_CASE("wet ground under cloud gets rain, cold ground gets snow", "[weather]"
     REQUIRE(snow.kind == Precipitation::Snow);
 }
 
-TEST_CASE("clear skies and dry ground stay dry", "[weather]") {
+TEST_CASE("clear skies and cold dry ground stay dry", "[weather]") {
     REQUIRE(weatherTargetFrom(clearSky, wet, warm).kind == Precipitation::None);
-    REQUIRE(weatherTargetFrom(heavyCloud, dry, warm).kind == Precipitation::None);
-    REQUIRE(weatherTargetFrom(heavyCloud, dry, warm).intensity == 0.0);
+    REQUIRE(weatherTargetFrom(clearSky, dry, scorching).kind == Precipitation::None);
+    // Dry but cold: no rain to fall and nothing to kick up as dust.
+    REQUIRE(weatherTargetFrom(heavyCloud, dry, cold).kind == Precipitation::None);
+    REQUIRE(weatherTargetFrom(heavyCloud, dry, cold).intensity == 0.0);
+}
+
+TEST_CASE("hot dry ground under heavy cloud gets a dust storm, not rain", "[weather][dust]") {
+    const WeatherTarget storm = weatherTargetFrom(heavyCloud, dry, scorching);
+    REQUIRE(storm.kind == Precipitation::DustStorm);
+    REQUIRE(storm.intensity > 0.9);
+
+    // Merely warm is a weaker storm than scorching.
+    const WeatherTarget mild = weatherTargetFrom(heavyCloud, dry, warm);
+    REQUIRE(mild.kind == Precipitation::DustStorm);
+    REQUIRE(mild.intensity < storm.intensity);
+
+    // More cloud, more dust.
+    REQUIRE(weatherTargetFrom(0.2, dry, scorching).intensity < storm.intensity);
+
+    // Wet ground still gets rain however hot it is.
+    REQUIRE(weatherTargetFrom(heavyCloud, wet, scorching).kind == Precipitation::Rain);
+}
+
+TEST_CASE("sweeping moisture gives a sensible result at every step when hot", "[weather][dust]") {
+    for (double moisture = 0.0; moisture <= 1.0; moisture += 0.01) {
+        const WeatherTarget target = weatherTargetFrom(heavyCloud, moisture, scorching);
+        REQUIRE(target.intensity >= 0.0);
+        REQUIRE(target.intensity <= 1.0);
+        if (target.kind == Precipitation::None) REQUIRE(target.intensity == 0.0);
+        // Too hot for snow at any moisture. (A thin band between the dust and rain ranges is
+        // allowed to be clear.)
+        REQUIRE(target.kind != Precipitation::Snow);
+    }
+    REQUIRE(weatherTargetFrom(heavyCloud, 0.0, scorching).kind == Precipitation::DustStorm);
+    REQUIRE(weatherTargetFrom(heavyCloud, 1.0, scorching).kind == Precipitation::Rain);
+}
+
+TEST_CASE("a dust storm dies down before rain starts", "[weather][dust]") {
+    WeatherSystem weather(1);
+    for (int i = 0; i < 60 * 30; ++i) weather.stepTowards({Precipitation::DustStorm, 1.0}, step);
+    REQUIRE(weather.state().kind == Precipitation::DustStorm);
+
+    bool sawRain = false;
+    for (int i = 0; i < 60 * 60; ++i) {
+        weather.stepTowards({Precipitation::Rain, 1.0}, step);
+        if (weather.state().kind == Precipitation::Rain) {
+            sawRain = true;
+            REQUIRE(weather.state().intensity < 0.1);  // started from nothing
+            break;
+        }
+    }
+    REQUIRE(sawRain);
 }
 
 TEST_CASE("weather intensity always stays in range", "[weather]") {

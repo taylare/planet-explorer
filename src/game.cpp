@@ -267,6 +267,7 @@ void Game::simulateStep(double stepSeconds) {
     wildlife_.update(wildlifeRegion, world_.seed(), chunkCache_, position, stepSeconds, sneaking);
     updateScanner(stepSeconds);
     updateSuitPower(stepSeconds, groundBiome, groundKnown);
+    announceSkyEvents();
 
     // Only re-reveal when the player changes chunk; it's the same squares otherwise.
     if (!hasRevealed_ || centre != lastRevealCentre_) {
@@ -452,6 +453,27 @@ void Game::updateSuitPower(double stepSeconds, Biome groundBiome, bool groundKno
     }
 }
 
+int Game::currentNightNumber() const { return nightNumberFor(dayNight_.timeOfDay(), dayNight_.day()); }
+
+// Tells the player once when a dust storm rolls in, and once when a meteor shower night gets dark.
+void Game::announceSkyEvents() {
+    const WeatherState& weather = weather_.state();
+    const bool stormBuilding = weather.kind == Precipitation::DustStorm && weather.intensity >= constants::dustStormAnnounceIntensity;
+    if (stormBuilding && lastAnnouncedWeather_ != Precipitation::DustStorm) {
+        lastAnnouncedWeather_ = Precipitation::DustStorm;
+        events_.push_back({GameEventType::Notice, "Dust storm rolling in"});
+    } else if (weather.kind != Precipitation::DustStorm) {
+        lastAnnouncedWeather_ = weather.kind;  // re-arm for the next storm
+    }
+
+    const int night = currentNightNumber();
+    const bool dark = dayNight_.lighting().nightAmount >= constants::meteorMinimumNightAmount;
+    if (dark && night != lastAnnouncedShowerNight_ && isMeteorShowerNight(world_.seed(), night)) {
+        lastAnnouncedShowerNight_ = night;
+        events_.push_back({GameEventType::Notice, "Meteor shower tonight"});
+    }
+}
+
 bool Game::buyUpgrade(UpgradeKind kind) {
     if (!nearShip_ || upgrades_.isMaxed(kind)) return false;
     const int cost = upgrades_.nextCost(kind);
@@ -589,6 +611,12 @@ void Game::render(double interpolationAlpha) {
     scene.minimap = &minimapView_;
     scene.planet = &planet_;
     scene.scan = &scanner_.status();
+    scene.meteorShower = isMeteorShowerNight(world_.seed(), currentNightNumber());
+    scene.skySeed = world_.seed();
+    scene.nightNumber = currentNightNumber();
+    scene.lightningFlash = weather_.state().kind == Precipitation::Rain
+                               ? lightningFlashAt(world_.seed(), simulatedSeconds_, weather_.state().intensity)
+                               : 0.0f;
     scene.hasShip = true;
     scene.shipFoot = shipPosition();
     scene.headlampStrength = power_.headlampStrength();

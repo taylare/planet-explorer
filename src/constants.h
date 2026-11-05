@@ -494,6 +494,62 @@ inline constexpr double snowSwaySpeed = 1.3;
 inline constexpr Rgb8 rainColor{170, 190, 222};
 inline constexpr Rgb8 snowflakeColor{242, 245, 250};
 
+// --- Dust storms ---
+
+// Hot, dry ground under heavy cloud gets a dust storm instead of rain. Dryness is full at or
+// below weatherDustMoistureFull and gone by weatherDustMoistureNone, and heat ramps up between
+// the two temperatures. Together they pick out desert-like climates.
+inline constexpr double weatherDustMoistureFull = 0.2;
+inline constexpr double weatherDustMoistureNone = 0.38;
+inline constexpr double weatherDustTemperatureStart = 0.55;
+inline constexpr double weatherDustTemperatureFull = 0.68;
+
+// Haze over the whole view, stronger toward the edges, tinted with the planet's desert colour.
+inline constexpr float dustHazeOpacity = 0.34f;
+inline constexpr float dustVignetteExtraOpacity = 0.36f;
+inline constexpr int maxDustParticles = 240;
+inline constexpr double dustWindPixelsPerSecond = -420.0;
+inline constexpr int dustStreakLengthInPixels = 7;
+inline constexpr float dustParticleOpacity = 0.5f;
+
+// A dust storm is announced once it is at least this strong.
+inline constexpr double dustStormAnnounceIntensity = 0.3;
+
+// How much of the way to white the dust specks are lightened from the haze colour.
+inline constexpr float dustParticleLightening = 0.3f;
+
+// --- Sky events: meteor showers and lightning ---
+
+// A night has a meteor shower with this chance, decided by the world seed and the night's number.
+inline constexpr double meteorShowerNightChance = 0.35;
+
+// Time is cut into slots; each slot can start a couple of meteors, each at a random moment in the slot.
+inline constexpr double meteorSlotSeconds = 1.2;
+inline constexpr int meteorsPerSlot = 2;
+inline constexpr double meteorChancePerMeteor = 0.75;
+inline constexpr double meteorDurationSeconds = 0.8;
+inline constexpr double meteorSpeedPixelsPerSecond = 300.0;
+inline constexpr int meteorTailLengthInPixels = 34;
+
+// Meteors light the water like a reflection and the ground more faintly.
+inline constexpr float meteorWaterOpacity = 0.9f;
+inline constexpr float meteorLandOpacity = 0.55f;
+inline constexpr Rgb8 meteorColor{255, 240, 212};
+
+// The shower is only announced and drawn once it is properly dark.
+inline constexpr float meteorMinimumNightAmount = 0.6f;
+
+// Lightning needs heavy rain. Time is cut into slots and each slot may hold one double flash.
+inline constexpr double lightningMinimumRainIntensity = 0.65;
+inline constexpr double lightningSlotSeconds = 7.0;
+inline constexpr double lightningBaseChancePerSlot = 0.25;
+inline constexpr double lightningExtraChanceAtFullRain = 0.4;
+inline constexpr double lightningSecondFlashDelaySeconds = 0.2;
+inline constexpr double lightningSecondFlashStrength = 0.6;
+inline constexpr double lightningDecaySeconds = 0.09;
+inline constexpr float lightningMaxBlend = 0.65f;
+inline constexpr Rgb8 lightningColor{222, 230, 255};
+
 // --- Footprints and ripples ---
 
 // One footprint per stride, alternating feet either side of the path.
