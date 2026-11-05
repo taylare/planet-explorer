@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d16">
+  <meta name="description" content="Wanderlight: an endless, quiet, procedurally generated world to wander.">
+  <title>Wanderlight</title>
+  <style>
+    :root {
+      --background: #0b0d16;
+      --panel: rgba(18, 22, 38, 0.72);
+      --panel-border: rgba(160, 170, 220, 0.18);
+      --text: #d9dcef;
+      --text-dim: #8a90b0;
+      --accent: #f2c879;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--background);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: block;
+      touch-action: none; /* we handle touch ourselves */
+      outline: none;
+    }
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: var(--background);
+      transition: opacity 0.6s ease;
+      z-index: 10;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    #loading h1 {
+      margin: 0;
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      font-size: clamp(22px, 5vw, 34px);
+      color: var(--accent);
+    }
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 2px solid var(--panel-border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #status { font-size: 14px; color: var(--text-dim); min-height: 1.2em; }
+    #status.error { color: #f08a8a; }
+    .hud-button {
+      position: fixed;
+      top: calc(12px + env(safe-area-inset-top));
+      right: calc(12px + env(safe-area-inset-right));
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+      background: var(--panel);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 5;
+    }
+    .hud-button:hover { border-color: var(--accent); }
+    .hud-button svg { width: 18px; height: 18px; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" tabindex="-1" aria-label="Wanderlight game view"></canvas>
+
+  <button id="fullscreen-button" class="hud-button" type="button" aria-label="Toggle fullscreen" title="Fullscreen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+    </svg>
+  </button>
+
+  <div id="loading">
+    <h1>WANDERLIGHT</h1>
+    <div class="spinner"></div>
+    <div id="status">Loading...</div>
+  </div>
+
+  <script>
+    const loadingOverlay = document.getElementById('loading');
+    const statusLine = document.getElementById('status');
+    const fullscreenButton = document.getElementById('fullscreen-button');
+
+    // iPhone Safari has no fullscreen API for pages. Hide the button there.
+    const root = document.documentElement;
+    const canGoFullscreen = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+    if (!canGoFullscreen) fullscreenButton.style.display = 'none';
+
+    fullscreenButton.addEventListener('click', () => {
+      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+      if (isFullscreen) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+      }
+    });
+
+    var Module = {
+      canvas: document.getElementById('canvas'),
+      setStatus(text) {
+        // Emscripten sends progress like "Downloading data... (12/40)". Keep it short.
+        if (text) statusLine.textContent = text.replace(/\(.*\)/, '').trim() || 'Loading...';
+      },
+      onFirstFrame() {
+        loadingOverlay.classList.add('hidden');
+      },
+      onAbort() {
+        statusLine.textContent = 'Something went wrong loading the world. Try refreshing.';
+        statusLine.classList.add('error');
+      },
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>
