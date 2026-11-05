@@ -552,6 +552,13 @@ inline constexpr double biomeAnnounceDelaySeconds = 1.2;
 inline constexpr double scanRangeInTiles = 4.0;
 inline constexpr double scanDurationSeconds = 1.5;
 
+// Landmarks take a little longer, since there is more to read.
+inline constexpr double landmarkScanDurationSeconds = 2.0;
+
+// What scanned landmarks give.
+inline constexpr int crystalGroveSampleYield = 3;
+inline constexpr int beaconRevealRadiusInChunks = 5;
+
 // Progress drains this many times faster than it builds once a scan is interrupted.
 inline constexpr double scanDecayMultiplier = 2.0;
 
@@ -570,7 +577,7 @@ inline constexpr Rgb8 scannerTrackColor{24, 34, 56};
 // --- Saving ---
 
 inline constexpr double autosaveIntervalSeconds = 10.0;
-inline constexpr int saveFormatVersion = 2;
+inline constexpr int saveFormatVersion = 3;
 
 // Sanity limit when loading, so a corrupt save can't ask for billions of entries.
 inline constexpr int maxSavedEntries = 4000000;

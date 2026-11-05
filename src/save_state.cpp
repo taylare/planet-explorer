@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include "constants.h"
+#include "lore.h"
 
 namespace wl {
 
@@ -14,8 +15,10 @@ constexpr const char* formatMagic = "WANDERLIGHT";
 constexpr char biomeEntryTag = 'B';
 constexpr char landmarkEntryTag = 'L';
 constexpr char speciesEntryTag = 'S';
+constexpr char loreEntryTag = 'R';
 
-// Saves from before version 2 had no animals in the journal, and still load fine.
+// Older saves are missing later additions (animals in version 2, samples and used landmarks
+// in version 3), and still load fine with those left empty.
 constexpr int oldestReadableVersion = 1;
 
 // Reads "label value..." and checks the label matches.
@@ -29,6 +32,7 @@ char entryTagFor(JournalCategory category) {
         case JournalCategory::Biome: return biomeEntryTag;
         case JournalCategory::Landmark: return landmarkEntryTag;
         case JournalCategory::Species: return speciesEntryTag;
+        case JournalCategory::Lore: return loreEntryTag;
     }
     return biomeEntryTag;
 }
@@ -57,6 +61,9 @@ std::string serializeSaveState(const SaveState& state) {
         output << entryTagFor(entry.category) << ' ' << static_cast<int>(entry.id) << ' ' << entry.tileX << ' '
                << entry.tileY << ' ' << entry.day << '\n';
     }
+    output << "samples " << state.samples << '\n';
+    output << "used " << state.usedLandmarks.size() << '\n';
+    for (const UsedLandmark& landmark : state.usedLandmarks) output << landmark.tileX << ' ' << landmark.tileY << '\n';
     output << "end\n";
     return output.str();
 }
@@ -111,6 +118,9 @@ std::optional<SaveState> parseSaveState(std::string_view text) {
         } else if (tag == speciesEntryTag) {
             if (id < 0 || id >= speciesCount) return std::nullopt;
             entry.category = JournalCategory::Species;
+        } else if (tag == loreEntryTag) {
+            if (id < 0 || id >= loreFragmentCount) return std::nullopt;
+            entry.category = JournalCategory::Lore;
         } else {
             return std::nullopt;
         }
@@ -118,9 +128,26 @@ std::optional<SaveState> parseSaveState(std::string_view text) {
         state.journal.push_back(entry);
     }
 
-    // The end marker catches saves cut off partway through writing.
-    if (!expectLabel(input, "end")) return std::nullopt;
-    return state;
+    // Optional labelled sections, then the end marker, which catches saves cut off
+    // partway through writing. Version 1 and 2 saves go straight to the marker.
+    std::string section;
+    while (input >> section) {
+        if (section == "end") return state;
+        if (section == "samples") {
+            if (!(input >> state.samples) || state.samples < 0) return std::nullopt;
+        } else if (section == "used") {
+            int usedCount = 0;
+            if (!(input >> usedCount) || usedCount < 0 || usedCount > constants::maxSavedEntries) return std::nullopt;
+            for (int index = 0; index < usedCount; ++index) {
+                UsedLandmark landmark;
+                if (!(input >> landmark.tileX >> landmark.tileY)) return std::nullopt;
+                state.usedLandmarks.push_back(landmark);
+            }
+        } else {
+            return std::nullopt;
+        }
+    }
+    return std::nullopt;
 }
 
 }  // namespace wl

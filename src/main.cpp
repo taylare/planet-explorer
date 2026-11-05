@@ -36,7 +36,7 @@ EM_JS(char*, jsLoadSave, (), {
     return text ? stringToNewUTF8(text) : 0;  // C++ frees it
 });
 EM_JS(void, jsStoreSave, (const char* text), { Module.wanderlightStoreSave(UTF8ToString(text)); });
-// mode: 0 plain (biome name), 1 discovery, 2 landing on a planet.
+// mode: 0 plain (biome name), 1 discovery, 2 landing on a planet, 3 scan result.
 EM_JS(void, jsShowBanner, (const char* text, int mode), { Module.wanderlightBanner(UTF8ToString(text), mode); });
 EM_JS(void, jsJournalChanged, (), { Module.wanderlightJournalChanged(); });
 EM_JS(void, jsWorldChanged, (double seed), { Module.wanderlightWorldChanged(seed); });
@@ -116,6 +116,9 @@ EMSCRIPTEN_KEEPALIVE void wl_set_action(int held) {
 // Share of the planet's survey list found so far, 0 to 100.
 EMSCRIPTEN_KEEPALIVE int wl_survey_percent() { return activeGame ? activeGame->surveyPercent() : 0; }
 
+// Research samples collected from crystal groves.
+EMSCRIPTEN_KEEPALIVE int wl_samples() { return activeGame ? activeGame->samples() : 0; }
+
 // So the joystick graphic matches the distance that gives full speed.
 EMSCRIPTEN_KEEPALIVE double wl_joystick_radius() { return wl::constants::dragFullSpeedInCssPixels; }
 
@@ -164,6 +167,7 @@ static void runFrame() {
             case wl::GameEventType::BiomeEntered: jsShowBanner(event.text.c_str(), 0); break;
             case wl::GameEventType::Discovery: jsShowBanner(event.text.c_str(), 1); break;
             case wl::GameEventType::JournalChanged: jsJournalChanged(); break;
+            case wl::GameEventType::Notice: jsShowBanner(event.text.c_str(), 3); break;
         }
     }
     if (activeGame->takeSaveRequest()) saveNow();

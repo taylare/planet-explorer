@@ -127,6 +127,8 @@ SaveState Game::makeSaveState() const {
     state.day = dayNight_.day();
     state.revealedChunks = exploration_.revealedChunksSorted();
     state.journal = journal_.entries();
+    state.samples = samples_;
+    state.usedLandmarks = usedLandmarks_;
     return state;
 }
 
@@ -140,6 +142,9 @@ bool Game::applySaveState(const SaveState& state) {
     dayNight_.setDay(state.day);
     exploration_.restore(state.revealedChunks);
     journal_.restore(state.journal);
+    samples_ = state.samples;
+    usedLandmarks_ = state.usedLandmarks;
+    scanner_.reset();
 
     // Fresh start for things tied to the old position.
     wildlife_.clear();
@@ -300,17 +305,69 @@ void Game::updateBiomeAnnouncement(Biome groundBiome, double stepSeconds) {
     }
 }
 
+bool Game::isLandmarkUsed(int tileX, int tileY) const {
+    return std::find(usedLandmarks_.begin(), usedLandmarks_.end(), UsedLandmark{tileX, tileY}) != usedLandmarks_.end();
+}
+
+// Scannable landmarks in the chunks around the player. Only built while the scan button
+// is held, so it costs nothing the rest of the time.
+std::vector<ScanLandmark> Game::scannableLandmarksNearPlayer() const {
+    std::vector<ScanLandmark> landmarks;
+    const ChunkCoord centre = playerChunk();
+    for (int chunkY = centre.y - 1; chunkY <= centre.y + 1; ++chunkY) {
+        for (int chunkX = centre.x - 1; chunkX <= centre.x + 1; ++chunkX) {
+            const Chunk* chunk = chunkCache_.findChunk({chunkX, chunkY});
+            if (!chunk) continue;
+            for (const Prop& prop : chunk->props) {
+                if (!isScannableLandmark(prop.kind)) continue;
+                const bool used = isLandmarkUsed(tileIndexFor(prop.tileX), tileIndexFor(prop.tileY));
+                landmarks.push_back({prop.tileX, prop.tileY, prop.kind, used});
+            }
+        }
+    }
+    return landmarks;
+}
+
 void Game::updateScanner(double stepSeconds) {
     const Vec2& position = player_.position();
-    const bool completed = scanner_.update(input_.actionHeld, position, wildlife_.creatures(), journal_, stepSeconds,
-                                           constants::scanRangeInTiles, constants::scanDurationSeconds);
+    const std::vector<ScanLandmark> landmarks =
+        input_.actionHeld ? scannableLandmarksNearPlayer() : std::vector<ScanLandmark>{};
+    const bool completed = scanner_.update(input_.actionHeld, position, wildlife_.creatures(), landmarks, journal_,
+                                           stepSeconds, constants::scanRangeInTiles, constants::scanDurationSeconds,
+                                           constants::landmarkScanDurationSeconds);
     if (!completed) return;
 
-    const Species species = scanner_.completedSpecies();
-    journal_.recordSpecies(species, tileIndexFor(position.x), tileIndexFor(position.y), dayNight_.day());
-    events_.push_back({GameEventType::Discovery, std::string(speciesName(species))});
+    if (scanner_.completedKind() == ScanTargetKind::Landmark) {
+        applyLandmarkScan(scanner_.completedLandmarkKind(), scanner_.completedLandmarkTileX(),
+                          scanner_.completedLandmarkTileY());
+    } else {
+        const Species species = scanner_.completedSpecies();
+        journal_.recordSpecies(species, tileIndexFor(position.x), tileIndexFor(position.y), dayNight_.day());
+        events_.push_back({GameEventType::Discovery, std::string(speciesName(species))});
+    }
     events_.push_back({GameEventType::JournalChanged, {}});
     requestSave();
+}
+
+// Applies what the scan result says and remembers the landmark as used.
+void Game::applyLandmarkScan(PropKind kind, int tileX, int tileY) {
+    const LandmarkResult result = scanLandmarkResult(kind, journal_.loreCount());
+    switch (result.effect) {
+        case LandmarkEffect::BeaconLit:
+            exploration_.reveal(chunkCoordForTile(tileX, tileY), constants::beaconRevealRadiusInChunks);
+            break;
+        case LandmarkEffect::SamplesGained:
+            samples_ += result.samples;
+            break;
+        case LandmarkEffect::LoreDecoded:
+            journal_.recordLore(result.loreIndex, tileX, tileY, dayNight_.day());
+            break;
+        case LandmarkEffect::NothingNew:
+        case LandmarkEffect::None:
+            break;
+    }
+    usedLandmarks_.push_back({tileX, tileY});
+    events_.push_back({GameEventType::Notice, landmarkNoticeText(kind, result)});
 }
 
 void Game::checkLandmarkDiscoveries() {

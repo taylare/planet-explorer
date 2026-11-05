@@ -11,11 +11,11 @@
 
 namespace wl {
 
-enum class JournalCategory : std::uint8_t { Biome = 0, Landmark = 1, Species = 2 };
+enum class JournalCategory : std::uint8_t { Biome = 0, Landmark = 1, Species = 2, Lore = 3 };
 
 struct JournalEntry {
     JournalCategory category = JournalCategory::Biome;
-    std::uint8_t id = 0;  // Biome, PropKind or Species value, depending on category
+    std::uint8_t id = 0;  // Biome, PropKind, Species or lore fragment index, depending on category
     int tileX = 0;
     int tileY = 0;
     int day = 1;
@@ -43,12 +43,16 @@ public:
     bool recordBiome(Biome biome, int tileX, int tileY, int day);
     bool recordLandmark(PropKind kind, int tileX, int tileY, int day);
     bool recordSpecies(Species species, int tileX, int tileY, int day);
+    bool recordLore(int fragmentIndex, int tileX, int tileY, int day);
 
     bool hasBiome(Biome biome) const;
     bool hasLandmark(PropKind kind) const;
     bool hasSpecies(Species species) const;
+    bool hasLore(int fragmentIndex) const;
+    int loreCount() const;  // fragments decoded so far, which is also the index of the next one
 
-    // The survey list is every biome you can walk in, every journal landmark and every species.
+    // The survey list is every biome you can walk in, every journal landmark, every species
+    // and every story fragment.
     // Deep ocean is left off because the player can never stand in it.
     SurveyProgress survey() const;
     int surveyPercent() const;  // 0 to 100, rounded down so 100 means truly everything
@@ -57,6 +61,7 @@ public:
     void restore(const std::vector<JournalEntry>& entries) { entries_ = entries; }
 
     // For the HTML journal panel: [{"type":"biome","name":"Forest","x":1,"y":2,"day":1}, ...]
+    // Lore entries also carry a "text" field with the fragment.
     std::string toJson() const;
 
 private:

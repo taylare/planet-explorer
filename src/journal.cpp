@@ -2,6 +2,8 @@
 
 #include <sstream>
 
+#include "lore.h"
+
 namespace wl {
 
 namespace {
@@ -10,6 +12,7 @@ const char* categoryLabel(JournalCategory category) {
         case JournalCategory::Biome: return "biome";
         case JournalCategory::Landmark: return "landmark";
         case JournalCategory::Species: return "species";
+        case JournalCategory::Lore: return "lore";
     }
     return "biome";
 }
@@ -32,6 +35,7 @@ std::string journalEntryName(const JournalEntry& entry) {
         case JournalCategory::Biome: return std::string(biomeName(static_cast<Biome>(entry.id)));
         case JournalCategory::Landmark: return std::string(propKindName(static_cast<PropKind>(entry.id)));
         case JournalCategory::Species: return std::string(speciesName(static_cast<Species>(entry.id)));
+        case JournalCategory::Lore: return std::string(loreTitle(entry.id));
     }
     return "Unknown";
 }
@@ -55,6 +59,19 @@ bool Journal::hasSpecies(Species species) const {
     return has(JournalCategory::Species, static_cast<std::uint8_t>(species));
 }
 
+bool Journal::hasLore(int fragmentIndex) const {
+    return fragmentIndex >= 0 && fragmentIndex < loreFragmentCount &&
+           has(JournalCategory::Lore, static_cast<std::uint8_t>(fragmentIndex));
+}
+
+int Journal::loreCount() const {
+    int count = 0;
+    for (const JournalEntry& entry : entries_) {
+        if (entry.category == JournalCategory::Lore) ++count;
+    }
+    return count;
+}
+
 bool Journal::recordBiome(Biome biome, int tileX, int tileY, int day) {
     if (hasBiome(biome)) return false;
     entries_.push_back({JournalCategory::Biome, static_cast<std::uint8_t>(biome), tileX, tileY, day});
@@ -73,10 +90,16 @@ bool Journal::recordSpecies(Species species, int tileX, int tileY, int day) {
     return true;
 }
 
+bool Journal::recordLore(int fragmentIndex, int tileX, int tileY, int day) {
+    if (fragmentIndex < 0 || fragmentIndex >= loreFragmentCount || hasLore(fragmentIndex)) return false;
+    entries_.push_back({JournalCategory::Lore, static_cast<std::uint8_t>(fragmentIndex), tileX, tileY, day});
+    return true;
+}
+
 SurveyProgress Journal::survey() const {
     SurveyProgress progress;
     // Deep ocean can't be entered, so it isn't on the list.
-    progress.total = (biomeCount - 1) + landmarkKindCount() + speciesCount;
+    progress.total = (biomeCount - 1) + landmarkKindCount() + speciesCount + loreFragmentCount;
     for (const JournalEntry& entry : entries_) {
         const bool isUnreachableBiome =
             entry.category == JournalCategory::Biome && entry.id == static_cast<std::uint8_t>(Biome::DeepOcean);
@@ -92,14 +115,17 @@ int Journal::surveyPercent() const {
 }
 
 std::string Journal::toJson() const {
-    // Names are fixed ASCII with no quotes or backslashes, so no escaping is needed.
+    // Names and lore are fixed ASCII with no quotes or backslashes (a lore test checks this),
+    // so no escaping is needed.
     std::ostringstream json;
     json << '[';
     for (std::size_t index = 0; index < entries_.size(); ++index) {
         const JournalEntry& entry = entries_[index];
         if (index > 0) json << ',';
         json << "{\"type\":\"" << categoryLabel(entry.category) << "\",\"name\":\"" << journalEntryName(entry)
-             << "\",\"x\":" << entry.tileX << ",\"y\":" << entry.tileY << ",\"day\":" << entry.day << '}';
+             << "\",\"x\":" << entry.tileX << ",\"y\":" << entry.tileY << ",\"day\":" << entry.day;
+        if (entry.category == JournalCategory::Lore) json << ",\"text\":\"" << loreText(entry.id) << '"';
+        json << '}';
     }
     json << ']';
     return json.str();

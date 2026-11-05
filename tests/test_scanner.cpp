@@ -28,8 +28,8 @@ bool holdFor(Scanner& scanner, double seconds, const Vec2& player, const std::ve
     bool completed = false;
     const int steps = static_cast<int>(seconds / step) + 1;
     for (int index = 0; index < steps && !completed; ++index) {
-        completed = scanner.update(true, player, creatures, journal, step, constants::scanRangeInTiles,
-                                   constants::scanDurationSeconds);
+        completed = scanner.update(true, player, creatures, {}, journal, step, constants::scanRangeInTiles,
+                                   constants::scanDurationSeconds, constants::landmarkScanDurationSeconds);
     }
     return completed;
 }
@@ -93,8 +93,8 @@ TEST_CASE("releasing the button drains progress and an already logged animal nev
     holdFor(scanner, constants::scanDurationSeconds * 0.5, {0, 0}, creatures, journal);
     const double before = scanner.status().progress;
     for (int index = 0; index < 30; ++index) {
-        scanner.update(false, {0, 0}, creatures, journal, step, constants::scanRangeInTiles,
-                       constants::scanDurationSeconds);
+        scanner.update(false, {0, 0}, creatures, {}, journal, step, constants::scanRangeInTiles,
+                       constants::scanDurationSeconds, constants::landmarkScanDurationSeconds);
     }
     REQUIRE(scanner.status().progress < before);
     REQUIRE_FALSE(scanner.status().hasTarget);

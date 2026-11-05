@@ -14,6 +14,7 @@
 #include "framebuffer.h"
 #include "input.h"
 #include "journal.h"
+#include "landmark_actions.h"
 #include "performance.h"
 #include "planet.h"
 #include "renderer.h"
@@ -30,6 +31,7 @@ enum class GameEventType {
     BiomeEntered,    // text is the biome name
     Discovery,       // text describes a new landmark
     JournalChanged,  // journal panel should refresh
+    Notice,          // text is a short line about what a scan just did
 };
 
 struct GameEvent {
@@ -85,6 +87,8 @@ public:
     const Journal& journal() const { return journal_; }
     const Scanner& scanner() const { return scanner_; }
     int surveyPercent() const { return journal_.surveyPercent(); }
+    int samples() const { return samples_; }
+    const std::vector<UsedLandmark>& usedLandmarks() const { return usedLandmarks_; }
     const ChunkCache& chunkCache() const { return chunkCache_; }
     const StreamingStats& lastStreamingStats() const { return lastStreamingStats_; }
     const FrameTimings& frameTimings() const { return profiler_.smoothed(); }
@@ -106,6 +110,9 @@ private:
     void updateBiomeAnnouncement(Biome groundBiome, double stepSeconds);
     void checkLandmarkDiscoveries();
     void updateScanner(double stepSeconds);
+    std::vector<ScanLandmark> scannableLandmarksNearPlayer() const;
+    bool isLandmarkUsed(int tileX, int tileY) const;
+    void applyLandmarkScan(PropKind kind, int tileX, int tileY);
     void rebuildMinimapMarkers();
     void render(double interpolationAlpha);
 
@@ -134,6 +141,8 @@ private:
     Exploration exploration_;
     Journal journal_;
     Scanner scanner_;
+    int samples_ = 0;                         // research samples, spent on upgrades later
+    std::vector<UsedLandmark> usedLandmarks_;  // landmarks already scanned
     MinimapView minimapView_;
 
     // Camera position is simulated (it eases after the player) and

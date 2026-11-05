@@ -221,6 +221,9 @@
     }
     #scan-button.active { border-color: var(--accent); color: var(--accent); }
     #scan-button svg { width: 26px; height: 26px; }
+    .lore-list li { display: block; }
+    .lore-list .lore-title { color: var(--text); }
+    .lore-list .lore-text { color: var(--text-dim); font-size: 13px; line-height: 1.45; margin: 3px 0 0; }
     #survey-label { color: var(--text-dim); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 4px; }
     .journal-empty { color: var(--text-dim); font-size: 13px; padding: 6px 0; }
 
@@ -374,6 +377,10 @@
         <ul id="journal-species" class="journal-list"></ul>
       </div>
       <div class="journal-section">
+        <h3>Survey crew log</h3>
+        <ul id="journal-lore" class="journal-list lore-list"></ul>
+      </div>
+      <div class="journal-section">
         <h3>Landmarks</h3>
         <ul id="journal-landmarks" class="journal-list"></ul>
       </div>
@@ -517,6 +524,29 @@
       }
     }
 
+    // Story fragments get their own layout: a title and the text beneath it.
+    function renderLoreList(listElement, entries) {
+      listElement.replaceChildren();
+      if (entries.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'journal-empty';
+        empty.textContent = 'Scan ruins to decode what the survey crew left behind.';
+        listElement.appendChild(empty);
+        return;
+      }
+      for (const entry of entries) {
+        const item = document.createElement('li');
+        const title = document.createElement('div');
+        title.className = 'lore-title';
+        title.textContent = entry.name;
+        const text = document.createElement('p');
+        text.className = 'lore-text';
+        text.textContent = entry.text;
+        item.append(title, text);
+        listElement.appendChild(item);
+      }
+    }
+
     // --- First-visit hint ---
     const hint = document.getElementById('hint');
     const hintSeenKey = 'wanderlight.hintSeen';
@@ -586,10 +616,10 @@
         debugOverlay.classList.add('visible');
         debugOverlay.textContent = text;
       },
-      // mode: 0 plain (biome), 1 discovery, 2 landing on a planet.
+      // mode: 0 plain (biome), 1 discovery, 2 landing on a planet, 3 scan result.
       showBanner(text, mode) {
-        const kickers = ['', 'Discovered', 'Landing on'];
-        const durations = [2800, 4200, 5200];
+        const kickers = ['', 'Discovered', 'Landing on', 'Scan complete'];
+        const durations = [2800, 4200, 5200, 4200];
         banner.querySelector('.kicker').textContent = kickers[mode] || '';
         banner.querySelector('.title').textContent = text;
         banner.classList.add('visible');
@@ -615,10 +645,11 @@
         seedLabel.textContent = `Seed ${seed}`;
         document.getElementById('world-current-seed').textContent = String(seed);
       },
-      setSurvey(percent) {
-        document.getElementById('survey-label').textContent = `Survey ${percent}%`;
+      setSurvey(percent, samples) {
+        document.getElementById('survey-label').textContent = `Survey ${percent}% \u00b7 ${samples} samples`;
       },
       setJournal(entries) {
+        renderLoreList(document.getElementById('journal-lore'), entries.filter((entry) => entry.type === 'lore'));
         renderJournalList(document.getElementById('journal-species'),
           entries.filter((entry) => entry.type === 'species'), 'Hold the scan button near an animal.');
         renderJournalList(document.getElementById('journal-landmarks'),

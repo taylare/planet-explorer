@@ -2,6 +2,7 @@
 #include <string>
 
 #include "journal.h"
+#include "lore.h"
 
 using namespace wl;
 
@@ -55,8 +56,8 @@ TEST_CASE("the survey counts everything findable and ignores deep ocean", "[jour
     Journal journal;
     const SurveyProgress empty = journal.survey();
     REQUIRE(empty.found == 0);
-    // 9 walkable biomes, 5 landmark types and 6 species.
-    REQUIRE(empty.total == 9 + 5 + 6);
+    // 9 walkable biomes, 5 landmark types, 6 species and 8 story fragments.
+    REQUIRE(empty.total == 9 + 5 + 6 + 8);
     REQUIRE(journal.surveyPercent() == 0);
 
     // Deep ocean can't be walked on, so recording it must not move the survey.
@@ -67,7 +68,7 @@ TEST_CASE("the survey counts everything findable and ignores deep ocean", "[jour
     journal.recordLandmark(PropKind::Tower, 0, 0, 1);
     journal.recordSpecies(Species::Deer, 0, 0, 1);
     REQUIRE(journal.survey().found == 3);
-    REQUIRE(journal.surveyPercent() == 3 * 100 / 20);
+    REQUIRE(journal.surveyPercent() == 3 * 100 / 28);
 }
 
 TEST_CASE("the survey only reaches 100 when everything is found", "[journal][survey]") {
@@ -75,5 +76,7 @@ TEST_CASE("the survey only reaches 100 when everything is found", "[journal][sur
     for (int index = 0; index < biomeCount; ++index) journal.recordBiome(static_cast<Biome>(index), 0, 0, 1);
     for (int index = 0; index < propKindCount; ++index) journal.recordLandmark(static_cast<PropKind>(index), 0, 0, 1);
     for (int index = 0; index < speciesCount; ++index) journal.recordSpecies(static_cast<Species>(index), 0, 0, 1);
+    REQUIRE(journal.surveyPercent() < 100);  // story fragments are still missing
+    for (int index = 0; index < loreFragmentCount; ++index) journal.recordLore(index, 0, 0, 1);
     REQUIRE(journal.surveyPercent() == 100);
 }

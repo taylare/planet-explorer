@@ -20,6 +20,7 @@ add_executable(wanderlight_tests
   test_game.cpp
   test_input.cpp
   test_journal.cpp
+  test_landmarks.cpp
   test_noise.cpp
   test_performance.cpp
   test_planet.cpp

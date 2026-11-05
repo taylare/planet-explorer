@@ -20,6 +20,7 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 - Footprints in sand and snow, ripples when you wade
 - A minimap that only fills in where you've been
 - A field scanner: hold it near an alien animal to log it. Holding it also makes you creep, so animals stay calm long enough to scan
+- Scannable landmarks: towers light a beacon that reveals the map, crystal groves give research samples, and ruins decode a story about the survey crew who came before you
 - A journal of the first time you found each biome, landmark and species, with coordinates, and a survey percentage for the whole planet
 - Automatic saving in your browser, shareable seeds and a "new world" button
 
@@ -128,7 +129,8 @@ All game logic is plain C++ with no browser code, so the same code runs in the n
 | `src/effects.*` | Footprints and ripples |
 | `src/exploration.*`, `src/journal.*` | Minimap fog of war and discoveries |
 | `src/scanner.*` | The field scanner: target choice, scan progress |
-| `src/save_state.*` | Save format for localStorage (version 2; version 1 saves still load) |
+| `src/landmark_actions.*`, `src/lore.*` | What scanning a landmark does, and the story fragments |
+| `src/save_state.*` | Save format for localStorage (version 3; older saves still load) |
 | `src/renderer.*`, `src/art.*`, `src/sprite.*` | Framebuffer drawing, lighting, minimap and text-defined sprite art |
 | `src/performance.*` | Frame timings and automatic quality steps |
 | `src/game.*` | Ties it all together with a fixed-timestep loop |

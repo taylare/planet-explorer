@@ -1,7 +1,8 @@
 // Everything that survives a reload, and its text format for localStorage.
 //
 // Only what the player changed is saved: the seed, where they are, the
-// clock, which chunks they've seen and the journal (biomes, landmarks and scanned animals). The world itself is
+// clock, which chunks they've seen, the journal (biomes, landmarks, animals and story
+// fragments), research samples and which landmarks have been used. The world itself is
 // regenerated from the seed.
 #pragma once
 
@@ -11,6 +12,7 @@
 #include <vector>
 
 #include "journal.h"
+#include "landmark_actions.h"
 #include "world.h"
 
 namespace wl {
@@ -23,11 +25,13 @@ struct SaveState {
     int day = 1;
     std::vector<ChunkCoord> revealedChunks;
     std::vector<JournalEntry> journal;
+    int samples = 0;
+    std::vector<UsedLandmark> usedLandmarks;
 
     bool operator==(const SaveState& other) const {
         return seed == other.seed && playerTileX == other.playerTileX && playerTileY == other.playerTileY &&
                timeOfDay == other.timeOfDay && day == other.day && revealedChunks == other.revealedChunks &&
-               journal == other.journal;
+               journal == other.journal && samples == other.samples && usedLandmarks == other.usedLandmarks;
     }
 };
 

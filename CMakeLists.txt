@@ -30,6 +30,8 @@ add_library(wanderlight_core STATIC
   src/game.cpp
   src/input.cpp
   src/journal.cpp
+  src/landmark_actions.cpp
+  src/lore.cpp
   src/noise.cpp
   src/performance.cpp
   src/planet.cpp

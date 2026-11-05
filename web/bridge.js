@@ -29,14 +29,14 @@ Module.wanderlightStoreSave = function (text) {
   }
 };
 
-// mode: 0 plain, 1 discovery, 2 landing on a planet.
+// mode: 0 plain, 1 discovery, 2 landing on a planet, 3 scan result.
 Module.wanderlightBanner = function (text, mode) {
   wanderlightCallUi('showBanner', text, mode);
 };
 
 Module.wanderlightJournalChanged = function () {
   wanderlightCallUi('setJournal', JSON.parse(UTF8ToString(Module._wl_journal_json())));
-  wanderlightCallUi('setSurvey', Module._wl_survey_percent());
+  wanderlightCallUi('setSurvey', Module._wl_survey_percent(), Module._wl_samples());
 };
 
 Module.wanderlightWorldChanged = function (seed) {

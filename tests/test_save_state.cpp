@@ -19,7 +19,10 @@ SaveState sampleState() {
         {JournalCategory::Biome, static_cast<std::uint8_t>(Biome::Forest), 10, -20, 1},
         {JournalCategory::Landmark, static_cast<std::uint8_t>(PropKind::CrystalGrove), -500, 600, 3},
         {JournalCategory::Species, static_cast<std::uint8_t>(Species::Fox), 33, 44, 5},
+        {JournalCategory::Lore, 2, 55, 66, 6},
     };
+    state.samples = 7;
+    state.usedLandmarks = {{10, 10}, {-3, 4}};
     return state;
 }
 
@@ -37,8 +40,13 @@ TEST_CASE("save state round-trips exactly", "[save]") {
 
 TEST_CASE("a version 1 save from before animals still loads", "[save]") {
     SaveState oldState = sampleState();
-    oldState.journal.pop_back();  // version 1 had no animal entries
+    oldState.journal.resize(2);  // version 1 had only biome and landmark entries
+    oldState.samples = 0;        // and no samples or used landmarks
+    oldState.usedLandmarks.clear();
     std::string text = serializeSaveState(oldState);
+    // Version 1 files end straight after the journal.
+    const std::size_t samplesAt = text.find("samples ");
+    text.erase(samplesAt, text.find("end\n") - samplesAt);
     const std::string currentHeader = "WANDERLIGHT " + std::to_string(constants::saveFormatVersion) + "\n";
     text.replace(0, currentHeader.size(), "WANDERLIGHT 1\n");
 
@@ -77,6 +85,14 @@ TEST_CASE("bad saves are rejected rather than half loaded", "[save]") {
     std::string tooOld = good;
     tooOld.replace(0, currentHeader.size(), "WANDERLIGHT 0\n");
     REQUIRE_FALSE(parseSaveState(tooOld).has_value());
+
+    std::string badLore = good;
+    badLore.replace(badLore.find("R 2 "), 4, "R 99 ");
+    REQUIRE_FALSE(parseSaveState(badLore).has_value());
+
+    std::string unknownSection = good;
+    unknownSection.replace(unknownSection.find("samples "), 8, "mystery ");
+    REQUIRE_FALSE(parseSaveState(unknownSection).has_value());
 
     std::string badSpecies = good;
     badSpecies.replace(badSpecies.find("S 5 "), 4, "S 99 ");
