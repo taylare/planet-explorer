@@ -201,6 +201,15 @@
     .journal-list .meta { color: var(--text-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .journal-empty { color: var(--text-dim); font-size: 13px; padding: 6px 0; }
 
+    /* Planet card at the top of the world panel */
+    .planet-card { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--panel-border); border-radius: 10px; background: rgba(0, 0, 0, 0.22); }
+    .planet-name { font-size: 18px; font-weight: 300; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+    .planet-swatches { display: flex; gap: 4px; margin: 8px 0 10px; }
+    .planet-swatches span { flex: 1; height: 8px; border-radius: 4px; }
+    .planet-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+    .planet-stats dt { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); }
+    .planet-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+
     .world-current { font-size: 13px; color: var(--text-dim); margin: 0 0 14px; }
     .world-current strong { color: var(--text); font-variant-numeric: tabular-nums; }
     .world-row { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -348,6 +357,16 @@
       <button class="close-button" type="button" data-close aria-label="Close">&times;</button>
     </header>
     <div class="body">
+      <div id="planet-card" class="planet-card">
+        <div id="planet-name" class="planet-name"></div>
+        <div id="planet-swatches" class="planet-swatches"></div>
+        <dl class="planet-stats">
+          <div><dt>Atmosphere</dt><dd id="planet-atmosphere"></dd></div>
+          <div><dt>Gravity</dt><dd id="planet-gravity"></dd></div>
+          <div><dt>Day length</dt><dd id="planet-day"></dd></div>
+          <div><dt>Sky</dt><dd id="planet-sky"></dd></div>
+        </dl>
+      </div>
       <p class="world-current">Current seed: <strong id="world-current-seed"></strong></p>
       <form id="seed-form" class="world-row">
         <input id="seed-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Enter a seed" aria-label="Seed">
@@ -518,12 +537,30 @@
         debugOverlay.classList.add('visible');
         debugOverlay.textContent = text;
       },
-      showBanner(text, isDiscovery) {
-        banner.querySelector('.kicker').textContent = isDiscovery ? 'Discovered' : '';
+      // mode: 0 plain (biome), 1 discovery, 2 landing on a planet.
+      showBanner(text, mode) {
+        const kickers = ['', 'Discovered', 'Landing on'];
+        const durations = [2800, 4200, 5200];
+        banner.querySelector('.kicker').textContent = kickers[mode] || '';
         banner.querySelector('.title').textContent = text;
         banner.classList.add('visible');
         clearTimeout(bannerTimer);
-        bannerTimer = setTimeout(() => banner.classList.remove('visible'), isDiscovery ? 4200 : 2800);
+        bannerTimer = setTimeout(() => banner.classList.remove('visible'), durations[mode] || 2800);
+      },
+      setPlanet(planet) {
+        document.getElementById('planet-name').textContent = planet.name;
+        document.getElementById('planet-atmosphere').textContent = planet.atmosphere;
+        document.getElementById('planet-gravity').textContent = `${planet.gravity.toFixed(2)} g`;
+        document.getElementById('planet-day').textContent = `${planet.dayMinutes.toFixed(1)} min`;
+        const moons = `${planet.moons} ${planet.moons === 1 ? 'moon' : 'moons'}`;
+        document.getElementById('planet-sky').textContent = planet.aurora ? `${moons}, aurora` : moons;
+        const swatches = document.getElementById('planet-swatches');
+        swatches.replaceChildren();
+        for (const color of planet.swatches) {
+          const chip = document.createElement('span');
+          chip.style.background = color;
+          swatches.appendChild(chip);
+        }
       },
       setSeed(seed) {
         seedLabel.textContent = `Seed ${seed}`;

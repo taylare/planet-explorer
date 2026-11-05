@@ -36,10 +36,11 @@ EM_JS(char*, jsLoadSave, (), {
     return text ? stringToNewUTF8(text) : 0;  // C++ frees it
 });
 EM_JS(void, jsStoreSave, (const char* text), { Module.wanderlightStoreSave(UTF8ToString(text)); });
-EM_JS(void, jsShowBanner, (const char* text, int isDiscovery),
-      { Module.wanderlightBanner(UTF8ToString(text), isDiscovery !== 0); });
+// mode: 0 plain (biome name), 1 discovery, 2 landing on a planet.
+EM_JS(void, jsShowBanner, (const char* text, int mode), { Module.wanderlightBanner(UTF8ToString(text), mode); });
 EM_JS(void, jsJournalChanged, (), { Module.wanderlightJournalChanged(); });
 EM_JS(void, jsWorldChanged, (double seed), { Module.wanderlightWorldChanged(seed); });
+EM_JS(void, jsPlanetChanged, (const char* json), { Module.wanderlightPlanetChanged(UTF8ToString(json)); });
 
 // Optional URL parameters, handy for review. Negative means "not set".
 EM_JS(double, jsReadUrlSeed, (), {
@@ -77,6 +78,7 @@ static void startWorld(wl::WorldSeed seed, const std::optional<wl::SaveState>& s
     if (save) activeGame->applySaveState(*save);
     if (lastDeviceWidth > 0) activeGame->resizeDevice(lastDeviceWidth, lastDeviceHeight, lastCssWidth, lastCssHeight);
     jsWorldChanged(seed);
+    jsPlanetChanged(wl::planetToJson(activeGame->planet()).c_str());
     jsJournalChanged();
 }
 
@@ -150,6 +152,7 @@ static void runFrame() {
 
     for (const wl::GameEvent& event : activeGame->takeEvents()) {
         switch (event.type) {
+            case wl::GameEventType::PlanetLanded: jsShowBanner(event.text.c_str(), 2); break;
             case wl::GameEventType::BiomeEntered: jsShowBanner(event.text.c_str(), 0); break;
             case wl::GameEventType::Discovery: jsShowBanner(event.text.c_str(), 1); break;
             case wl::GameEventType::JournalChanged: jsJournalChanged(); break;

@@ -32,6 +32,7 @@ add_library(wanderlight_core STATIC
   src/journal.cpp
   src/noise.cpp
   src/performance.cpp
+  src/planet.cpp
   src/props.cpp
   src/renderer.cpp
   src/save_state.cpp

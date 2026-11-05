@@ -4,6 +4,7 @@
 #include <array>
 
 #include "entities.h"
+#include "planet.h"
 #include "sprite.h"
 #include "world.h"
 
@@ -15,7 +16,8 @@ inline constexpr int flowerColorCount = 4;
 
 class SpriteLibrary {
 public:
-    SpriteLibrary();
+    // Trees, cacti and sandstone take their colours from the planet palette.
+    explicit SpriteLibrary(const PlanetPalette& palette = defaultPlanetPalette());
 
     const Sprite& player(int walkFrame) const;
     const Sprite& prop(const Prop& prop, int animationFrame) const;
@@ -24,9 +26,9 @@ public:
     // Flat things drawn under everything else, centred on their anchor.
     static bool isGroundDecal(PropKind kind);
 
-    // Where the lantern sits, relative to the foot point at 1x scale, facing right.
-    static constexpr int lanternOffsetX = 3;
-    static constexpr int lanternOffsetY = -3;
+    // Where the headlamp sits, relative to the foot point at 1x scale, facing right.
+    static constexpr int lampOffsetX = 3;
+    static constexpr int lampOffsetY = -3;
 
     // Tower window rows and column in sprite pixels (outline included).
     static constexpr int towerWindowColumn = 5;

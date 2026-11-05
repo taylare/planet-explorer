@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include "constants.h"
+#include "planet.h"
 #include "renderer.h"
 
 using namespace wl;
@@ -135,4 +136,74 @@ TEST_CASE("full frames are fully opaque at any time of day", "[renderer]") {
             REQUIRE((framebuffer.pixels()[index] >> 24) == 255u);
         }
     }
+}
+
+TEST_CASE("the planet palette recolours the terrain", "[renderer][planet]") {
+    // One patch of shallow water, so the colour on screen is the palette's water colour.
+    MapChunkSource source;
+    for (int chunkY = -1; chunkY <= 0; ++chunkY) {
+        for (int chunkX = -1; chunkX <= 0; ++chunkX) {
+            auto chunk = std::make_unique<Chunk>();
+            chunk->coord = {chunkX, chunkY};
+            chunk->biomes.fill(Biome::ShallowWater);
+            chunk->elevations.fill(0.40f);
+            source.chunks[chunk->coord] = std::move(chunk);
+        }
+    }
+
+    PlanetProfile planet = makePlanetProfile(3);
+    planet.palette.shallowWater = {200, 10, 10};
+    planet.palette.deepWater = {200, 10, 10};
+
+    Renderer renderer;
+    Framebuffer framebuffer;
+    framebuffer.resize(64, 64);
+    SceneView scene = sceneAt(source, 0.5);
+    scene.camera.tileSizeInPixels = 4;
+    scene.planet = &planet;
+    renderer.drawFrame(framebuffer, scene);
+
+    const PackedColor pixel = framebuffer.at(5, 5);
+    REQUIRE((pixel & 0xff) > 150);
+    REQUIRE(((pixel >> 8) & 0xff) < 60);
+}
+
+TEST_CASE("moons and the aurora only appear at night", "[renderer][planet]") {
+    const World world(4);
+    MapChunkSource source;
+    fillAroundOrigin(source, world);
+
+    PlanetProfile lively = makePlanetProfile(4);
+    lively.moonCount = constants::maxMoons;
+    lively.auroraStrength = 1.0;
+    PlanetProfile plain = lively;
+    plain.moonCount = 0;
+    plain.auroraStrength = 0.0;
+
+    Renderer renderer;
+    const auto countDifferences = [&](double timeOfDay) {
+        Framebuffer withSky;
+        withSky.resize(160, 120);
+        Framebuffer withoutSky;
+        withoutSky.resize(160, 120);
+
+        SceneView sceneWithSky = sceneAt(source, timeOfDay);
+        sceneWithSky.planet = &lively;
+        sceneWithSky.timeSeconds = 12.0;
+        renderer.drawFrame(withSky, sceneWithSky);
+
+        SceneView sceneWithoutSky = sceneAt(source, timeOfDay);
+        sceneWithoutSky.planet = &plain;
+        sceneWithoutSky.timeSeconds = 12.0;
+        renderer.drawFrame(withoutSky, sceneWithoutSky);
+
+        int differences = 0;
+        for (int index = 0; index < 160 * 120; ++index) {
+            if (withSky.pixels()[index] != withoutSky.pixels()[index]) ++differences;
+        }
+        return differences;
+    };
+
+    REQUIRE(countDifferences(0.5) == 0);    // noon: nothing to see
+    REQUIRE(countDifferences(0.0) > 100);   // midnight: the aurora ribbon is drawn
 }

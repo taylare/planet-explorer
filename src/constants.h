@@ -201,6 +201,8 @@ inline constexpr double mountainHeightTint = 0.25;
 
 // --- Palette ---
 
+// The biome colours below are the default planet's. makePlanetProfile in
+// planet.cpp recolours them for every other world seed.
 struct Rgb8 {
     std::uint8_t red, green, blue;
 };
@@ -217,13 +219,14 @@ inline constexpr Rgb8 snowColor{232, 238, 244};
 inline constexpr Rgb8 mountainColor{122, 116, 112};
 inline constexpr Rgb8 unloadedColor{11, 13, 22};  // matches the page background
 
-// Player sprite
-inline constexpr Rgb8 playerHoodColor{78, 58, 96};
-inline constexpr Rgb8 playerFaceColor{232, 204, 172};
-inline constexpr Rgb8 playerCloakColor{126, 88, 70};
-inline constexpr Rgb8 playerBootColor{44, 34, 38};
-inline constexpr Rgb8 lanternColor{255, 214, 128};
-inline constexpr Rgb8 lanternHandleColor{190, 146, 82};
+// Player sprite: an explorer in a spacesuit with a handheld headlamp.
+inline constexpr Rgb8 suitHelmetColor{214, 220, 232};
+inline constexpr Rgb8 suitVisorColor{58, 150, 196};
+inline constexpr Rgb8 suitBodyColor{184, 192, 208};
+inline constexpr Rgb8 suitPackColor{116, 124, 148};
+inline constexpr Rgb8 suitBootColor{58, 62, 80};
+inline constexpr Rgb8 headlampColor{190, 244, 255};
+inline constexpr Rgb8 headlampHandleColor{120, 128, 148};
 inline constexpr Rgb8 spriteOutlineColor{20, 18, 28};
 
 // Light line drawn where water meets a wading sprite.
@@ -238,23 +241,12 @@ inline constexpr float spriteShadowStrength = 0.6f;
 // Sprites are drawn at this tile size at 1x, then scaled up in whole steps.
 inline constexpr int spriteBaseTileSizeInPixels = 8;
 
-// Prop and landmark sprites
-inline constexpr Rgb8 leafLightColor{96, 150, 76};
-inline constexpr Rgb8 leafDarkColor{58, 104, 56};
-inline constexpr Rgb8 forestLeafLightColor{62, 118, 66};
-inline constexpr Rgb8 forestLeafDarkColor{34, 76, 46};
-inline constexpr Rgb8 pineLightColor{58, 110, 84};
-inline constexpr Rgb8 pineDarkColor{30, 70, 58};
+// Prop and landmark sprites. Tree, cactus and sandstone colours come from the planet
+// palette instead (see surfaceColorsFor in planet.cpp).
 inline constexpr Rgb8 snowOnBranchColor{226, 234, 242};
-inline constexpr Rgb8 acaciaLeafColor{128, 140, 66};
-inline constexpr Rgb8 acaciaLeafDarkColor{92, 104, 48};
-inline constexpr Rgb8 cactusLightColor{96, 150, 92};
-inline constexpr Rgb8 cactusDarkColor{60, 108, 70};
 inline constexpr Rgb8 trunkColor{92, 66, 50};
 inline constexpr Rgb8 rockLightColor{150, 146, 142};
 inline constexpr Rgb8 rockDarkColor{98, 94, 96};
-inline constexpr Rgb8 sandstoneLightColor{196, 160, 112};
-inline constexpr Rgb8 sandstoneDarkColor{150, 118, 82};
 inline constexpr Rgb8 ruinStoneLightColor{170, 164, 150};
 inline constexpr Rgb8 ruinStoneDarkColor{116, 110, 104};
 inline constexpr Rgb8 mossColor{88, 120, 70};
@@ -271,7 +263,6 @@ inline constexpr Rgb8 springWaterLightColor{120, 214, 214};
 inline constexpr Rgb8 springWaterDarkColor{70, 168, 182};
 inline constexpr Rgb8 steamColor{236, 240, 244};
 inline constexpr Rgb8 flowerStemColor{70, 120, 60};
-inline constexpr Rgb8 dryGrassColor{196, 176, 110};
 
 // Flower petals pick one of these per flower.
 inline constexpr Rgb8 flowerPetalColors[] = {
@@ -333,6 +324,31 @@ inline constexpr int landmarkPlacementAttempts = 8;
 // Ordinary props are kept clear of a landmark by this radius.
 inline constexpr double landmarkClearingRadiusInTiles = 3.0;
 
+// --- Planets ---
+// Each world seed is its own planet. These bound the stats rolled in planet.cpp.
+
+inline constexpr double minGravity = 0.45;
+inline constexpr double maxGravity = 1.85;
+
+// Multiplier on dayLengthSeconds. Below 1 is a short day, above 1 a long one.
+inline constexpr double minDayLengthScale = 0.7;
+inline constexpr double maxDayLengthScale = 1.5;
+
+inline constexpr int maxMoons = 3;
+
+// Each moon lifts the night colour grade by this much (scaled by how dark it is).
+inline constexpr float moonlightPerMoon = 0.03f;
+
+// Moons glint on water and slide slowly across the screen.
+inline constexpr double moonDriftPixelsPerSecond = 1.2;
+inline constexpr float moonReflectionOpacity = 0.75f;
+
+// Aurora: a soft ribbon of coloured light drifting across the night scene.
+// Planets rolling less than this strength have no aurora.
+inline constexpr double auroraStrengthMinimum = 0.3;
+inline constexpr double auroraBandHalfHeightFraction = 0.11;  // of the screen height
+inline constexpr float auroraOpacity = 0.32f;
+
 // --- Day and night ---
 
 // One full day in real seconds. Long enough that night feels like a phase, not a flicker.
@@ -368,7 +384,7 @@ struct LightSettings {
     float red, green, blue;
     float intensity;
 };
-inline constexpr LightSettings lanternLight{4.5, 1.0f, 0.82f, 0.5f, 0.95f};
+inline constexpr LightSettings headlampLight{4.5, 0.85f, 0.95f, 1.0f, 0.95f};
 inline constexpr LightSettings campfireLight{5.5, 1.0f, 0.6f, 0.3f, 1.1f};
 inline constexpr LightSettings crystalLight{4.0, 0.45f, 0.95f, 1.0f, 0.9f};
 inline constexpr LightSettings towerWindowLight{2.0, 1.0f, 0.8f, 0.45f, 0.8f};

@@ -29,8 +29,9 @@ Module.wanderlightStoreSave = function (text) {
   }
 };
 
-Module.wanderlightBanner = function (text, isDiscovery) {
-  wanderlightCallUi('showBanner', text, isDiscovery);
+// mode: 0 plain, 1 discovery, 2 landing on a planet.
+Module.wanderlightBanner = function (text, mode) {
+  wanderlightCallUi('showBanner', text, mode);
 };
 
 Module.wanderlightJournalChanged = function () {
@@ -39,6 +40,11 @@ Module.wanderlightJournalChanged = function () {
 
 Module.wanderlightWorldChanged = function (seed) {
   wanderlightCallUi('setSeed', seed);
+};
+
+// The planet's name and stats, as JSON text, whenever a world starts.
+Module.wanderlightPlanetChanged = function (json) {
+  wanderlightCallUi('setPlanet', JSON.parse(json));
 };
 
 // Save when the tab is hidden or closed, so a quick exit doesn't lose the last few seconds.

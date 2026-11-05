@@ -40,6 +40,7 @@ int tileIndexFor(double position) { return static_cast<int>(std::floor(position)
 Game::Game(WorldSeed seed)
     : world_(seed),
       chunkCache_(world_, constants::chunkCacheCapacityInChunks),
+      planet_(makePlanetProfile(seed)),
       clock_(constants::simulationStepSeconds, constants::maxSimulationStepsPerFrame,
              constants::maxFrameDeltaSeconds),
       dayNight_(constants::startingTimeOfDay),
@@ -52,6 +53,7 @@ Game::Game(WorldSeed seed)
     previousCameraPosition_ = cameraPosition_;
 
     resizeDevice(constants::defaultDeviceWidthInPixels, constants::defaultDeviceHeightInPixels);
+    events_.push_back({GameEventType::PlanetLanded, planet_.name});
 }
 
 void Game::resizeDevice(int deviceWidthInPixels, int deviceHeightInPixels, double cssWidth, double cssHeight) {
@@ -231,7 +233,8 @@ std::string Game::debugText() const {
 
 void Game::simulateStep(double stepSeconds) {
     simulatedSeconds_ += stepSeconds;
-    dayNight_.advance(stepSeconds);
+    // A longer planetary day means the clock runs slower.
+    dayNight_.advance(stepSeconds / planet_.dayLengthScale);
     updateFollowOffset();  // the player moved, so the held point's direction changed
     player_.update(computeMoveIntent(input_), chunkCache_, stepSeconds);
 
@@ -364,11 +367,12 @@ void Game::render(double interpolationAlpha) {
     scene.trails = &trails_;
     scene.weather = &weather_.state();
     scene.minimap = &minimapView_;
+    scene.planet = &planet_;
     scene.interpolationAlpha = interpolationAlpha;
     scene.timeSeconds = simulatedSeconds_;
 
     // Rain and snow dull the light a little on top of the time of day.
-    scene.lighting = dayNight_.lighting();
+    scene.lighting = planetLighting(planet_, dayNight_.lighting());
     const float overcast = 1.0f - constants::overcastDarkening * static_cast<float>(weather_.state().intensity);
     scene.lighting.tintRed *= overcast;
     scene.lighting.tintGreen *= overcast;

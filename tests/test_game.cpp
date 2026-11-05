@@ -118,3 +118,22 @@ TEST_CASE("every rendered pixel is fully opaque", "[game]") {
         REQUIRE((framebuffer.pixels()[index] >> 24) == 255u);
     }
 }
+
+TEST_CASE("starting a world announces the planet", "[game][planet]") {
+    Game game(99);
+    const std::vector<GameEvent> events = game.takeEvents();
+    REQUIRE_FALSE(events.empty());
+    REQUIRE(events.front().type == GameEventType::PlanetLanded);
+    REQUIRE(events.front().text == game.planet().name);
+}
+
+TEST_CASE("a longer planetary day slows the clock", "[game][planet]") {
+    Game game(2468);
+    const double scale = game.planet().dayLengthScale;
+    const double startTime = game.dayNight().timeOfDay();
+    constexpr int frames = 600;  // ten seconds
+    runFrames(game, frames);
+
+    const double expectedChange = (frames * constants::simulationStepSeconds) / (constants::dayLengthSeconds * scale);
+    REQUIRE(game.dayNight().timeOfDay() - startTime == Catch::Approx(expectedChange).epsilon(0.01));
+}

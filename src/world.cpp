@@ -50,16 +50,16 @@ bool isPleasantSpawnBiome(Biome biome) {
 
 std::string_view biomeName(Biome biome) {
     switch (biome) {
-        case Biome::DeepOcean: return "Deep Ocean";
-        case Biome::ShallowWater: return "Shallows";
-        case Biome::Beach: return "Beach";
-        case Biome::Grassland: return "Grassland";
-        case Biome::Forest: return "Forest";
-        case Biome::Desert: return "Desert";
-        case Biome::Savanna: return "Savanna";
-        case Biome::Tundra: return "Tundra";
-        case Biome::Snow: return "Snowfield";
-        case Biome::Mountain: return "Mountains";
+        case Biome::DeepOcean: return "Abyssal Sea";
+        case Biome::ShallowWater: return "Tidal Shallows";
+        case Biome::Beach: return "Shoreline";
+        case Biome::Grassland: return "Verdant Plains";
+        case Biome::Forest: return "Canopy Wilds";
+        case Biome::Desert: return "Dust Basin";
+        case Biome::Savanna: return "Amber Steppe";
+        case Biome::Tundra: return "Frost Barrens";
+        case Biome::Snow: return "Ice Sheet";
+        case Biome::Mountain: return "Basalt Ridges";
         case Biome::Count: break;
     }
     return "Unknown";

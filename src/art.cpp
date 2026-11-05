@@ -17,24 +17,27 @@ bool SpriteLibrary::isGroundDecal(PropKind kind) {
     return kind == PropKind::Flower || kind == PropKind::HotSpring;
 }
 
-SpriteLibrary::SpriteLibrary() {
+SpriteLibrary::SpriteLibrary(const PlanetPalette& palette) {
     using namespace constants;
+    const SurfaceColors surface = surfaceColorsFor(palette);
 
-    // --- Player: a hooded wanderer with a lantern. Standing, then two steps. ---
+    // --- Player: an explorer in a spacesuit, life-support pack on the back and a
+    // handheld headlamp. Standing, then two steps. ---
     const std::initializer_list<SpriteColorKey> playerColors = {
-        {'h', toPacked(playerHoodColor)},  {'f', toPacked(playerFaceColor)},
-        {'c', toPacked(playerCloakColor)}, {'b', toPacked(playerBootColor)},
-        {'L', toPacked(lanternColor)},     {'l', toPacked(lanternHandleColor)},
+        {'h', toPacked(suitHelmetColor)}, {'v', toPacked(suitVisorColor)},
+        {'s', toPacked(suitBodyColor)},   {'p', toPacked(suitPackColor)},
+        {'b', toPacked(suitBootColor)},   {'L', toPacked(headlampColor)},
+        {'l', toPacked(headlampHandleColor)},
     };
     const char* playerLegs[playerWalkFrameCount] = {"..b.b...", ".b...b..", "...bb..."};
     for (int frame = 0; frame < playerWalkFrameCount; ++frame) {
         playerFrames_[frame] = buildSprite({"..hhh...",
                                             ".hhhhh..",
-                                            ".hfffh..",
-                                            ".ccccc..",
-                                            "cccccccl",
-                                            ".ccccc.L",
-                                            ".ccccc..",
+                                            ".hvvvh..",
+                                            ".sssss..",
+                                            "pssssssl",
+                                            "psssss.L",
+                                            ".sssss..",
                                             playerLegs[frame]},
                                            playerColors, outlined);
     }
@@ -55,8 +58,8 @@ SpriteLibrary::SpriteLibrary() {
                             "....ttt...."},
                            {{'G', light}, {'g', dark}, {'t', toPacked(trunkColor)}}, outlined);
     };
-    broadleafGrassland_ = broadleaf(toPacked(leafLightColor), toPacked(leafDarkColor));
-    broadleafForest_ = broadleaf(toPacked(forestLeafLightColor), toPacked(forestLeafDarkColor));
+    broadleafGrassland_ = broadleaf(toPacked(surface.broadleafLight), toPacked(surface.broadleafDark));
+    broadleafForest_ = broadleaf(toPacked(surface.forestLeafLight), toPacked(surface.forestLeafDark));
 
     const auto pine = [](PackedColor light, PackedColor dark) {
         return buildSprite({"...P...",
@@ -73,8 +76,8 @@ SpriteLibrary::SpriteLibrary() {
                             "...t..."},
                            {{'P', light}, {'p', dark}, {'t', toPacked(trunkColor)}}, outlined);
     };
-    pineGreen_ = pine(toPacked(pineLightColor), toPacked(pineDarkColor));
-    pineSnowy_ = pine(toPacked(snowOnBranchColor), toPacked(pineDarkColor));
+    pineGreen_ = pine(toPacked(surface.pineLight), toPacked(surface.pineDark));
+    pineSnowy_ = pine(toPacked(snowOnBranchColor), toPacked(surface.pineDark));
 
     acacia_ = buildSprite({".aaaaaaaaaaa.",
                            "aAAAaAAAAAaAa",
@@ -84,8 +87,8 @@ SpriteLibrary::SpriteLibrary() {
                            ".....t.t.....",
                            "......t......",
                            "......t......"},
-                          {{'A', toPacked(acaciaLeafColor)},
-                           {'a', toPacked(acaciaLeafDarkColor)},
+                          {{'A', toPacked(surface.acaciaLeaf)},
+                           {'a', toPacked(surface.acaciaLeafDark)},
                            {'t', toPacked(trunkColor)}},
                           outlined);
 
@@ -97,7 +100,7 @@ SpriteLibrary::SpriteLibrary() {
                            "..C..",
                            "..C..",
                            "..C.."},
-                          {{'C', toPacked(cactusLightColor)}, {'c', toPacked(cactusDarkColor)}}, outlined);
+                          {{'C', toPacked(surface.cactusLight)}, {'c', toPacked(surface.cactusDark)}}, outlined);
 
     // --- Rocks ---
     const auto rock = [](PackedColor light, PackedColor dark) {
@@ -108,7 +111,7 @@ SpriteLibrary::SpriteLibrary() {
                            {{'R', light}, {'r', dark}}, outlined);
     };
     rockGrey_ = rock(toPacked(rockLightColor), toPacked(rockDarkColor));
-    rockSandstone_ = rock(toPacked(sandstoneLightColor), toPacked(sandstoneDarkColor));
+    rockSandstone_ = rock(toPacked(surface.sandstoneLight), toPacked(surface.sandstoneDark));
 
     // --- Flowers and grass tufts (flat) ---
     for (int colorIndex = 0; colorIndex < flowerColorCount; ++colorIndex) {
@@ -123,7 +126,7 @@ SpriteLibrary::SpriteLibrary() {
     dryGrass_ = buildSprite({"y..y.",
                              ".y.y.",
                              ".yyy."},
-                            {{'y', toPacked(dryGrassColor)}}, flat);
+                            {{'y', toPacked(surface.dryGrass)}}, flat);
 
     // --- Ruins and campfires ---
     ruins_ = buildSprite({"s...........s",

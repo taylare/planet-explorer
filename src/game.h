@@ -15,6 +15,7 @@
 #include "input.h"
 #include "journal.h"
 #include "performance.h"
+#include "planet.h"
 #include "renderer.h"
 #include "save_state.h"
 #include "weather.h"
@@ -24,6 +25,7 @@ namespace wl {
 
 // Things the page should react to. The game decides when; the page decides how they look.
 enum class GameEventType {
+    PlanetLanded,    // text is the planet name; sent when a world starts
     BiomeEntered,    // text is the biome name
     Discovery,       // text describes a new landmark
     JournalChanged,  // journal panel should refresh
@@ -70,6 +72,7 @@ public:
     const Framebuffer& framebuffer() const { return framebuffer_; }
     const FramebufferLayout& layout() const { return layout_; }
     const World& world() const { return world_; }
+    const PlanetProfile& planet() const { return planet_; }
     const Player& player() const { return player_; }
     const Wildlife& wildlife() const { return wildlife_; }
     const DayNightCycle& dayNight() const { return dayNight_; }
@@ -103,6 +106,7 @@ private:
     // Declared first: the cache holds a reference to it.
     World world_;
     ChunkCache chunkCache_;
+    PlanetProfile planet_;
 
     FixedTimestepClock clock_;
     FramebufferLayout layout_;

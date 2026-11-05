@@ -48,6 +48,20 @@ constexpr int propReachUpward = 3;  // the tower is the tallest
 // Below this the scene counts as full daylight and the lighting pass is skipped.
 constexpr float nightThreshold = 0.01f;
 
+// The aurora fades out this many band half-heights from its middle.
+constexpr double auroraReachInHalfHeights = 1.8;
+
+// Aurora curtains: how fast the ribbon sways and ripples, and its shape. These
+// are screen-space wave frequencies and speeds picked by eye.
+constexpr double auroraRippleFrequency = 0.075;
+constexpr double auroraRippleSpeed = 0.9;
+constexpr double auroraSwayFrequency = 0.010;
+constexpr double auroraSwaySpeed = 0.12;
+constexpr double auroraBandTopFraction = 0.30;  // where the ribbon sits on the screen, from the top
+
+// Below this a blended aurora pixel is too faint to bother drawing.
+constexpr float auroraMinimumVisibleOpacity = 0.01f;
+
 struct ColorF {
     float red, green, blue;
 };
@@ -91,24 +105,23 @@ PackedColor packScaled(const ColorF& color, float brightness) {
                     toChannel(color.blue * brightness));
 }
 
-ColorF landColor(Biome biome) {
-    using namespace constants;
+ColorF landColor(const PlanetPalette& palette, Biome biome) {
     switch (biome) {
-        case Biome::Beach: return toColorF(beachColor);
-        case Biome::Grassland: return toColorF(grasslandColor);
-        case Biome::Forest: return toColorF(forestColor);
-        case Biome::Desert: return toColorF(desertColor);
-        case Biome::Savanna: return toColorF(savannaColor);
-        case Biome::Tundra: return toColorF(tundraColor);
-        case Biome::Snow: return toColorF(snowColor);
-        case Biome::Mountain: return toColorF(mountainColor);
-        default: return toColorF(grasslandColor);
+        case Biome::Beach: return toColorF(palette.beach);
+        case Biome::Grassland: return toColorF(palette.grassland);
+        case Biome::Forest: return toColorF(palette.forest);
+        case Biome::Desert: return toColorF(palette.desert);
+        case Biome::Savanna: return toColorF(palette.savanna);
+        case Biome::Tundra: return toColorF(palette.tundra);
+        case Biome::Snow: return toColorF(palette.snow);
+        case Biome::Mountain: return toColorF(palette.mountain);
+        default: return toColorF(palette.grassland);
     }
 }
 
 // Base colour and brightness for one tile, before per-pixel grain.
-void tileColorAndBrightness(Biome biome, float elevation, float hillshade, std::uint32_t tileHash, ColorF& color,
-                            float& brightness) {
+void tileColorAndBrightness(const PlanetPalette& palette, Biome biome, float elevation, float hillshade,
+                            std::uint32_t tileHash, ColorF& color, float& brightness) {
     using namespace constants;
     const float jitter = (hashToUnitFloat(tileHash) - 0.5f) * static_cast<float>(tileColorJitter);
 
@@ -117,18 +130,18 @@ void tileColorAndBrightness(Biome biome, float elevation, float hillshade, std::
         const float depth = std::clamp(
             static_cast<float>((seaLevelElevation - elevation) / (seaLevelElevation - deepestWaterElevation)), 0.0f,
             1.0f);
-        color = lerpColor(toColorF(shallowWaterColor), toColorF(deepWaterColor), depth);
+        color = lerpColor(toColorF(palette.shallowWater), toColorF(palette.deepWater), depth);
         brightness = 1.0f + jitter * 0.5f;  // water is calmer than land
         if (biome == Biome::DeepOcean) brightness *= deepOceanDarkening;
         return;
     }
 
-    color = landColor(biome);
+    color = landColor(palette, biome);
     if (biome == Biome::Mountain) {
         // Rock lightens toward the peaks so ranges read as height, not just grey.
         const float heightBlend = std::clamp(
             static_cast<float>((elevation - mountainElevation) / (snowCapElevation - mountainElevation)), 0.0f, 1.0f);
-        color = lerpColor(color, toColorF(snowColor), heightBlend * static_cast<float>(mountainHeightTint));
+        color = lerpColor(color, toColorF(palette.snow), heightBlend * static_cast<float>(mountainHeightTint));
     }
     brightness = 1.0f + hillshade * static_cast<float>(hillshadeContrast) + jitter;
 }
@@ -207,17 +220,32 @@ Renderer::Renderer() {
         }
     }
 
+    for (int step = 0; step < auroraFalloffSteps; ++step) {
+        // The table covers the distance from the band's middle out to auroraReachInHalfHeights.
+        const double offset = auroraReachInHalfHeights * step / (auroraFalloffSteps - 1);
+        auroraFalloff_[step] = static_cast<float>(std::exp(-offset * offset));
+    }
+    rebuildMinimapPalette();
+}
+
+void Renderer::rebuildMinimapPalette() {
     // The minimap uses flat biome colours: no shading, it's a map.
     for (int index = 0; index < biomeCount; ++index) {
         const Biome biome = static_cast<Biome>(index);
         if (biome == Biome::DeepOcean) {
-            minimapPalette_[index] = toPacked(constants::deepWaterColor);
+            minimapPalette_[index] = toPacked(palette_.deepWater);
         } else if (biome == Biome::ShallowWater) {
-            minimapPalette_[index] = toPacked(constants::shallowWaterColor);
+            minimapPalette_[index] = toPacked(palette_.shallowWater);
         } else {
-            minimapPalette_[index] = packScaled(landColor(biome), 1.0f);
+            minimapPalette_[index] = packScaled(landColor(palette_, biome), 1.0f);
         }
     }
+}
+
+void Renderer::setPalette(const PlanetPalette& palette) {
+    palette_ = palette;
+    sprites_ = SpriteLibrary(palette);
+    rebuildMinimapPalette();
 }
 
 void Renderer::drawTrails(Framebuffer& framebuffer, const SceneView& scene, const ScreenOrigin& origin,
@@ -440,7 +468,7 @@ void Renderer::drawTerrain(Framebuffer& framebuffer, const Camera& camera, const
                                                       floorModulo(tileY, chunkSizeInTiles));
                 const Biome biome = currentChunk->biomes[tileIndex];
                 water = isWater(biome);
-                tileColorAndBrightness(biome, currentChunk->elevations[tileIndex],
+                tileColorAndBrightness(palette_, biome, currentChunk->elevations[tileIndex],
                                        currentChunk->hillshades[tileIndex], hashCoords(0, tileX, tileY), baseColor,
                                        brightness);
             }
@@ -733,7 +761,85 @@ void Renderer::drawStars(Framebuffer& framebuffer, const LightingState& lighting
     }
 }
 
+void Renderer::drawMoons(Framebuffer& framebuffer, const PlanetProfile& planet, const LightingState& lighting,
+                         double timeSeconds) const {
+    using namespace constants;
+    if (lighting.nightAmount <= nightThreshold) return;
+
+    const int width = framebuffer.width();
+    const int height = framebuffer.height();
+    const float nightOpacity = lighting.nightAmount * moonReflectionOpacity;
+
+    for (int moonIndex = 0; moonIndex < planet.moonCount; ++moonIndex) {
+        const Moon& moon = planet.moons[moonIndex];
+        const double driftedX = moon.startX * width + timeSeconds * moonDriftPixelsPerSecond * moon.driftSpeed;
+        const int centreX = floorModulo64(static_cast<std::int64_t>(std::floor(driftedX)), width);
+        const int centreY = static_cast<int>(moon.startY * (height - 1));
+        const int coreRadius = moon.radiusInPixels;
+        const int haloRadius = coreRadius * 2;
+        const double coreRadiusSquared = static_cast<double>(coreRadius) * coreRadius;
+        const double haloRadiusSquared = static_cast<double>(haloRadius) * haloRadius;
+
+        for (int offsetY = -haloRadius; offsetY <= haloRadius; ++offsetY) {
+            const int y = centreY + offsetY;
+            if (y < 0 || y >= height) continue;
+            // Each row shifts sideways like the water surface does, so the glint shimmers.
+            const int rowWobble = static_cast<int>(
+                std::lround(std::sin(timeSeconds * waterWobbleSpeed + y * waterWobbleRowFrequency) * waterWobblePixels));
+            for (int offsetX = -haloRadius; offsetX <= haloRadius; ++offsetX) {
+                const int x = centreX + offsetX + rowWobble;
+                if (x < 0 || x >= width) continue;
+                if (!waterMask_[static_cast<std::size_t>(y) * width + x]) continue;  // moons only show on water
+
+                const double distanceSquared = static_cast<double>(offsetX) * offsetX + static_cast<double>(offsetY) * offsetY;
+                if (distanceSquared > haloRadiusSquared) continue;
+                float amount = 1.0f;
+                if (distanceSquared > coreRadiusSquared) {
+                    const double haloProgress = 1.0 - (distanceSquared - coreRadiusSquared) / (haloRadiusSquared - coreRadiusSquared);
+                    amount = 0.5f * static_cast<float>(haloProgress * haloProgress);
+                }
+                blendPixel(framebuffer, x, y, moon.color, nightOpacity * amount);
+            }
+        }
+    }
+}
+
+void Renderer::drawAurora(Framebuffer& framebuffer, const PlanetProfile& planet, const LightingState& lighting,
+                          double timeSeconds) const {
+    using namespace constants;
+    if (!planet.hasAurora() || lighting.nightAmount <= nightThreshold) return;
+
+    const int width = framebuffer.width();
+    const int height = framebuffer.height();
+    const float strength = lighting.nightAmount * static_cast<float>(planet.auroraStrength) * auroraOpacity;
+    const double bandHalfHeight = height * auroraBandHalfHeightFraction;
+
+    for (int x = 0; x < width; ++x) {
+        // Brightness ripples along the ribbon, and the ribbon itself sways up and down.
+        const double curtain =
+            0.5 + 0.5 * std::sin(x * auroraRippleFrequency + timeSeconds * auroraRippleSpeed +
+                                 1.3 * std::sin(x * auroraSwayFrequency + timeSeconds * 0.2));
+        const double centreY =
+            height * (auroraBandTopFraction + 0.12 * std::sin(x * auroraSwayFrequency + timeSeconds * auroraSwaySpeed) +
+                      0.06 * std::sin(x * 0.027 - timeSeconds * 0.17));
+        const int firstY = std::max(0, static_cast<int>(std::floor(centreY - auroraReachInHalfHeights * bandHalfHeight)));
+        const int lastY =
+            std::min(height - 1, static_cast<int>(std::ceil(centreY + auroraReachInHalfHeights * bandHalfHeight)));
+
+        for (int y = firstY; y <= lastY; ++y) {
+            const double distanceInHalfHeights = std::abs(y - centreY) / bandHalfHeight;
+            const int step = std::min(auroraFalloffSteps - 1,
+                                      static_cast<int>(distanceInHalfHeights / auroraReachInHalfHeights * (auroraFalloffSteps - 1)));
+            const float opacity = strength * static_cast<float>(curtain) * auroraFalloff_[step];
+            if (opacity < auroraMinimumVisibleOpacity) continue;
+            blendPixel(framebuffer, x, y, planet.auroraColor, opacity);
+        }
+    }
+}
+
 void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
+    if (scene.planet && scene.planet->palette != palette_) setPalette(scene.planet->palette);
+
     const Camera& camera = scene.camera;
     const ScreenOrigin origin = screenOriginFor(camera, framebuffer.width(), framebuffer.height());
     // Sprites scale with zoom in whole steps, never below 1x, so they stay visible zoomed out.
@@ -758,9 +864,9 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
     playerItem.wading = scene.player.wading;
     drawItems_.push_back(playerItem);
 
-    const int lanternDirection = scene.player.facingLeft ? -1 : 1;
-    lights_.push_back({playerItem.footX + lanternDirection * SpriteLibrary::lanternOffsetX * scale,
-                       playerItem.footY + SpriteLibrary::lanternOffsetY * scale, &constants::lanternLight, 1.0f});
+    const int lampDirection = scene.player.facingLeft ? -1 : 1;
+    lights_.push_back({playerItem.footX + lampDirection * SpriteLibrary::lampOffsetX * scale,
+                       playerItem.footY + SpriteLibrary::lampOffsetY * scale, &constants::headlampLight, 1.0f});
 
     // Painter's order: higher on screen is further away, so draw it first.
     // Stable sort with an x tie-break keeps the order steady frame to frame.
@@ -774,6 +880,10 @@ void Renderer::drawFrame(Framebuffer& framebuffer, const SceneView& scene) {
     if (scene.weather) drawWeather(framebuffer, scene, origin, scale);
     applyLighting(framebuffer, scene.lighting, camera.tileSizeInPixels);
     drawStars(framebuffer, scene.lighting, scene.timeSeconds);
+    if (scene.planet) {
+        drawMoons(framebuffer, *scene.planet, scene.lighting, scene.timeSeconds);
+        drawAurora(framebuffer, *scene.planet, scene.lighting, scene.timeSeconds);
+    }
 
     // The map is UI, so it goes on last and isn't darkened by night.
     if (scene.minimap) drawMinimap(framebuffer, scene);

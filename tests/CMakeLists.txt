@@ -22,6 +22,7 @@ add_executable(wanderlight_tests
   test_journal.cpp
   test_noise.cpp
   test_performance.cpp
+  test_planet.cpp
   test_props.cpp
   test_renderer.cpp
   test_save_state.cpp

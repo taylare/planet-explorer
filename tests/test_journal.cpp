@@ -34,6 +34,6 @@ TEST_CASE("journal JSON lists entries with names and coordinates", "[journal]") 
     journal.recordLandmark(PropKind::HotSpring, 100, -200, 4);
     const std::string json = journal.toJson();
     REQUIRE(json ==
-            "[{\"type\":\"biome\",\"name\":\"Snowfield\",\"x\":-7,\"y\":8,\"day\":3},"
+            "[{\"type\":\"biome\",\"name\":\"Ice Sheet\",\"x\":-7,\"y\":8,\"day\":3},"
             "{\"type\":\"landmark\",\"name\":\"Hot Spring\",\"x\":100,\"y\":-200,\"day\":4}]");
 }

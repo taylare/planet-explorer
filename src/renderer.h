@@ -13,6 +13,7 @@
 #include "entities.h"
 #include "exploration.h"
 #include "framebuffer.h"
+#include "planet.h"
 #include "sprite.h"
 #include "weather.h"
 #include "world.h"
@@ -76,6 +77,7 @@ struct SceneView {
     const TrailEffects* trails = nullptr;
     const WeatherState* weather = nullptr;
     const MinimapView* minimap = nullptr;
+    const PlanetProfile* planet = nullptr;  // palette, moons and aurora; null draws the default look
     double interpolationAlpha = 1.0;
     LightingState lighting;
     double timeSeconds = 0.0;  // sim time; drives animation and effect ages
@@ -86,6 +88,10 @@ public:
     Renderer();
 
     void drawFrame(Framebuffer& framebuffer, const SceneView& scene);
+
+    // Recolours terrain, plants and the minimap. drawFrame calls this by itself
+    // when the scene's planet changes.
+    void setPalette(const PlanetPalette& palette);
 
     // Terrain only. Public so tests can check it on its own.
     void drawTerrain(Framebuffer& framebuffer, const Camera& camera, const ChunkSource& chunks,
@@ -133,6 +139,11 @@ private:
     void drawMinimap(Framebuffer& framebuffer, const SceneView& scene) const;
     void applyLighting(Framebuffer& framebuffer, const LightingState& lighting, int tileSize);
     void drawStars(Framebuffer& framebuffer, const LightingState& lighting, double timeSeconds);
+    void drawMoons(Framebuffer& framebuffer, const PlanetProfile& planet, const LightingState& lighting,
+                   double timeSeconds) const;
+    void drawAurora(Framebuffer& framebuffer, const PlanetProfile& planet, const LightingState& lighting,
+                    double timeSeconds) const;
+    void rebuildMinimapPalette();
     void rebuildStarsIfNeeded(int width, int height);
 
     // Small tiled pattern of brightness steps, indexed by world pixel so it
@@ -140,8 +151,13 @@ private:
     static constexpr int grainPatternSize = 64;
     std::array<std::uint8_t, grainPatternSize * grainPatternSize> grainPattern_{};
 
+    PlanetPalette palette_ = defaultPlanetPalette();
     SpriteLibrary sprites_;
     std::array<PackedColor, biomeCount> minimapPalette_{};
+
+    // How bright the aurora is at each distance from the middle of its band.
+    static constexpr int auroraFalloffSteps = 64;
+    std::array<float, auroraFalloffSteps> auroraFalloff_{};
 
     // Scratch buffers kept between frames to avoid allocating every frame.
     std::vector<std::uint8_t> waterMask_;     // 1 where the pixel shows water

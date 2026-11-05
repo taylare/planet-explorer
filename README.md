@@ -1,6 +1,6 @@
 # Wanderlight
 
-An endless, quiet planet to wander. Every step reveals new ground, generated on the fly from a single number, and the same number always grows the same world. There is no combat, no score and no way to lose: just forests, deserts, snowfields and coastlines, the odd lone tower or glowing crystal grove, and a day that slowly turns to night.
+An endless, quiet alien planet to explore. Every step reveals new ground, generated on the fly from a single number, and the same number always grows the same planet. There is no combat and no way to lose: just canopy wilds, dust basins, ice sheets and coastlines, the odd lone tower or glowing crystal grove, and a day that slowly turns to night under one to three moons.
 
 Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own framebuffer and deployed to GitHub Pages on every push.
 
@@ -11,10 +11,11 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 ## What's in it
 
 - An infinite world streamed in chunks around you, with ten biomes
+- Every seed is its own planet: a generated name, a colour palette (the trees and seas change colour too), gravity, day length, one to three moons and sometimes an aurora
 - Trees, rocks, flowers, ruins and campfires that suit each biome
 - Rare landmarks to find: lone towers, crystal groves and hot springs
 - Deer, rabbits, crabs, lizards, mountain goats and snow foxes that wander, rest and shy away from you
-- A day and night cycle, with lantern light, flickering campfires and stars reflected in the water
+- A day and night cycle, with headlamp light, flickering campfires, and stars and moons reflected in the water
 - Rain over wet ground and snow over cold ground, drifting in as weather fronts
 - Footprints in sand and snow, ripples when you wade
 - A minimap that only fills in where you've been
@@ -117,6 +118,7 @@ All game logic is plain C++ with no browser code, so the same code runs in the n
 | `src/constants.h` | Every tunable number, with a note on each |
 | `src/noise.*` | Simplex noise and fBm |
 | `src/world.*` | Seed, biome lookup, tile and chunk coordinates, chunk generation |
+| `src/planet.*` | Per-seed planet identity: palette, sky tint, moons, aurora and stats |
 | `src/props.*` | Trees, rocks, flowers, ruins, campfires and rare landmarks |
 | `src/chunk_cache.*` | Chunk streaming, time budget and LRU eviction |
 | `src/entities.*` | The player and wildlife steering |
@@ -147,6 +149,7 @@ The tests cover:
 - every elevation, moisture and temperature combination maps to a biome
 - save and load round-trips the full game state
 - the cache evicts the least recently used chunks and never one in view
+- planets: the same seed gives the same planet, stats stay in range, palettes recolour the terrain
 - props and landmarks, wildlife, weather, day and night, input, and rendering
 
 ## What I learned
