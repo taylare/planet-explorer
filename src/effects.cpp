@@ -34,10 +34,15 @@ void TrailEffects::update(const Player& player, Biome groundBiome, double nowSec
     };
 
     // One mark per stride, using the same stride length as the walk animation.
+    // Only while visibly moving: after stopping, the player still creeps a
+    // tiny distance as they ease to a halt, and could tick over one more
+    // stride seconds later, leaving a print out of nowhere.
     const long long strideIndex = static_cast<long long>(player.distanceWalked() / strideLengthInTiles);
     if (strideIndex != lastStrideIndex_) {
         lastStrideIndex_ = strideIndex;
-        if (player.isWading()) {
+        if (!player.isMoving()) {
+            // Creeping to a halt: no mark.
+        } else if (player.isWading()) {
             addRipple();
         } else if (leavesFootprints(groundBiome)) {
             // Offset sideways from the direction of travel, alternating feet.
