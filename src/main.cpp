@@ -1,10 +1,12 @@
 // Emscripten entry point. The only C++ file that knows about the browser.
 #include <emscripten.h>
 
+#include <memory>
+
 #include "game.h"
 
 namespace {
-wl::Game* activeGame = nullptr;
+std::unique_ptr<wl::Game> activeGame;
 double lastFrameTimeMs = 0.0;
 }  // namespace
 
@@ -12,6 +14,17 @@ double lastFrameTimeMs = 0.0;
 EM_JS(void, jsInitBridge, (), { Module.wanderlightInit(); });
 EM_JS(void, jsPresentFrame, (const void* pixels, int width, int height, int pixelScale),
       { Module.wanderlightPresent(pixels, width, height, pixelScale); });
+
+// Optional ?seed= and ?zoom= URL parameters, handy for review. Returns the
+// fallback when the parameter is missing or not a number.
+EM_JS(double, jsReadUrlSeed, (double fallback), {
+    const value = Number(new URLSearchParams(location.search).get('seed'));
+    return Number.isFinite(value) && value > 0 ? (value >>> 0) : fallback;
+});
+EM_JS(int, jsReadUrlZoom, (int fallback), {
+    const value = parseInt(new URLSearchParams(location.search).get('zoom'), 10);
+    return Number.isFinite(value) ? value : fallback;
+});
 
 extern "C" EMSCRIPTEN_KEEPALIVE void wl_resize(int deviceWidthInPixels, int deviceHeightInPixels) {
     if (activeGame) activeGame->resizeDevice(deviceWidthInPixels, deviceHeightInPixels);
@@ -30,9 +43,9 @@ static void runFrame() {
 }
 
 int main() {
-    // Static so it outlives main(), which returns straight after setting up the loop.
-    static wl::Game game;
-    activeGame = &game;
+    const auto seed = static_cast<wl::WorldSeed>(jsReadUrlSeed(wl::constants::defaultWorldSeed));
+    activeGame = std::make_unique<wl::Game>(seed);
+    activeGame->setTileSizeInPixels(jsReadUrlZoom(wl::constants::defaultTileSizeInPixels));
 
     jsInitBridge();  // hooks up resize and sends the real canvas size
     lastFrameTimeMs = emscripten_get_now();

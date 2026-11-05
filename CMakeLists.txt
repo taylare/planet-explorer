@@ -22,6 +22,9 @@ add_library(wanderlight_core STATIC
   src/fixed_timestep.cpp
   src/framebuffer.cpp
   src/game.cpp
+  src/noise.cpp
+  src/renderer.cpp
+  src/world.cpp
 )
 target_include_directories(wanderlight_core PUBLIC src)
 

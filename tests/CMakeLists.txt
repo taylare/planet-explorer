@@ -9,9 +9,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(wanderlight_tests
+  test_biome.cpp
   test_fixed_timestep.cpp
   test_framebuffer.cpp
   test_game.cpp
+  test_noise.cpp
+  test_renderer.cpp
+  test_world.cpp
 )
 target_link_libraries(wanderlight_tests PRIVATE wanderlight_core Catch2::Catch2WithMain)
 
