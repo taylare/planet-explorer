@@ -77,6 +77,10 @@ if(EMSCRIPTEN)
     # rarely has to grow, but allow growth for very zoomed-out views.
     "-sINITIAL_MEMORY=33554432"
     "-sALLOW_MEMORY_GROWTH=1"
+    # Loading a save hands a string from JS to C++, which JS allocates with
+    # malloc and C++ frees. Both must be visible to JS. Functions marked
+    # EMSCRIPTEN_KEEPALIVE in main.cpp are exported on top of these.
+    "-sEXPORTED_FUNCTIONS=_main,_malloc,_free"
     "$<$<CONFIG:Release>:-O3>"
     "$<$<CONFIG:Release>:-flto>"
     "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
