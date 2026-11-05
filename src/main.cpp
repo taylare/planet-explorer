@@ -26,9 +26,27 @@ EM_JS(int, jsReadUrlZoom, (int fallback), {
     return Number.isFinite(value) ? value : fallback;
 });
 
-extern "C" EMSCRIPTEN_KEEPALIVE void wl_resize(int deviceWidthInPixels, int deviceHeightInPixels) {
+extern "C" {
+
+EMSCRIPTEN_KEEPALIVE void wl_resize(int deviceWidthInPixels, int deviceHeightInPixels) {
     if (activeGame) activeGame->resizeDevice(deviceWidthInPixels, deviceHeightInPixels);
 }
+
+// direction: 0 up, 1 down, 2 left, 3 right (matches wl::Direction).
+EMSCRIPTEN_KEEPALIVE void wl_set_direction(int direction, int held) {
+    if (!activeGame || direction < 0 || direction >= wl::directionCount) return;
+    activeGame->setDirectionHeld(static_cast<wl::Direction>(direction), held != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE void wl_set_drag(int active, double offsetX, double offsetY) {
+    if (activeGame) activeGame->setDrag(active != 0, offsetX, offsetY);
+}
+
+EMSCRIPTEN_KEEPALIVE void wl_release_input() {
+    if (activeGame) activeGame->releaseAllInput();
+}
+
+}  // extern "C"
 
 static void runFrame() {
     const double nowMs = emscripten_get_now();
@@ -47,7 +65,7 @@ int main() {
     activeGame = std::make_unique<wl::Game>(seed);
     activeGame->setTileSizeInPixels(jsReadUrlZoom(wl::constants::defaultTileSizeInPixels));
 
-    jsInitBridge();  // hooks up resize and sends the real canvas size
+    jsInitBridge();  // hooks up resize and input, and sends the real canvas size
     lastFrameTimeMs = emscripten_get_now();
 
     // 0 fps means "use requestAnimationFrame", i.e. as fast as the browser allows.

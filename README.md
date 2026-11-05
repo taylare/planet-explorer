@@ -4,6 +4,10 @@ An endless, quiet, procedurally generated planet to wander. Written in C++, comp
 
 Work in progress. The full README arrives in the final stage.
 
+## Controls
+
+WASD or arrow keys to walk. On a phone (or with a mouse), press and drag anywhere: the further you drag, the faster you go. Shallow water slows you down; deep ocean is too deep to cross.
+
 ## Build
 
 ### Native tests
@@ -36,7 +40,11 @@ Two URL parameters help while developing: `?seed=42` picks a world, and `?zoom=1
 | `src/constants.h` | Every tunable number |
 | `src/noise.*` | Simplex noise and fBm, written from scratch |
 | `src/world.*` | Seed, biome lookup, coordinates, chunk generation |
-| `src/renderer.*` | Draws terrain into the framebuffer |
+| `src/chunk_cache.*` | Streams chunks around the player, LRU eviction, per-frame time budget |
+| `src/entities.*` | The player: movement, terrain speed, collision |
+| `src/input.*` | Keys and drag to a movement direction |
+| `src/sprite.*` | Text-defined pixel art sprites |
+| `src/renderer.*` | Draws terrain and sprites into the framebuffer |
 | `web/shell.html` | HTML page: loader, fullscreen button, dark theme |
 | `web/bridge.js` | Thin JS layer: canvas sizing and framebuffer blit |
 | `tests/` | Catch2 unit tests, native only |

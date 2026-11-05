@@ -90,6 +90,14 @@ Biome classifyBiome(double elevation, double moisture, double temperature) {
     return moisture < forestMoisture ? Biome::Grassland : Biome::Forest;
 }
 
+bool tryGetBiome(const ChunkSource& chunks, int tileX, int tileY, Biome& biomeOut) {
+    const Chunk* chunk = chunks.findChunk(chunkCoordForTile(tileX, tileY));
+    if (!chunk) return false;
+    biomeOut = chunk->biomes[Chunk::indexFor(floorModulo(tileX, constants::chunkSizeInTiles),
+                                             floorModulo(tileY, constants::chunkSizeInTiles))];
+    return true;
+}
+
 std::size_t ChunkCoordHash::operator()(const ChunkCoord& coord) const {
     return hashCoords(0, coord.x, coord.y);
 }

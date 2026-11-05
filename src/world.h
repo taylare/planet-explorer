@@ -97,6 +97,9 @@ public:
     virtual const Chunk* findChunk(ChunkCoord coord) const = 0;
 };
 
+// Biome at a tile, if its chunk is loaded.
+bool tryGetBiome(const ChunkSource& chunks, int tileX, int tileY, Biome& biomeOut);
+
 // --- World ---
 
 struct TerrainSample {

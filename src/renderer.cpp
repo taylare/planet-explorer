@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 #include "hash.h"
 
@@ -37,6 +38,19 @@ ColorF lerpColor(const ColorF& from, const ColorF& to, float t) {
 
 std::uint8_t toChannel(float value) {
     return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 255.0f));
+}
+
+PackedColor toPacked(const constants::Rgb8& color) {
+    return packRgba(color.red, color.green, color.blue);
+}
+
+void darkenPixel(Framebuffer& framebuffer, int x, int y, float factor) {
+    if (x < 0 || y < 0 || x >= framebuffer.width() || y >= framebuffer.height()) return;
+    PackedColor& pixel = framebuffer.at(x, y);
+    const auto scaleChannel = [factor](PackedColor value, int shift) {
+        return static_cast<std::uint8_t>(static_cast<float>((value >> shift) & 0xffu) * factor);
+    };
+    pixel = packRgba(scaleChannel(pixel, 0), scaleChannel(pixel, 8), scaleChannel(pixel, 16));
 }
 
 PackedColor packScaled(const ColorF& color, float brightness) {
@@ -100,19 +114,35 @@ int grainIndex(std::int64_t worldPixel, int patternSize) {
 
 }  // namespace
 
+ScreenOrigin screenOriginFor(const Camera& camera, int framebufferWidth, int framebufferHeight) {
+    ScreenOrigin origin;
+    origin.tileSizeInPixels = std::max(camera.tileSizeInPixels, 1);
+    origin.leftWorldPixel =
+        static_cast<std::int64_t>(std::floor(camera.centerTileX * origin.tileSizeInPixels)) - framebufferWidth / 2;
+    origin.topWorldPixel =
+        static_cast<std::int64_t>(std::floor(camera.centerTileY * origin.tileSizeInPixels)) - framebufferHeight / 2;
+    return origin;
+}
+
+int worldToScreenX(const ScreenOrigin& origin, double tileX) {
+    return static_cast<int>(static_cast<std::int64_t>(std::floor(tileX * origin.tileSizeInPixels)) -
+                            origin.leftWorldPixel);
+}
+
+int worldToScreenY(const ScreenOrigin& origin, double tileY) {
+    return static_cast<int>(static_cast<std::int64_t>(std::floor(tileY * origin.tileSizeInPixels)) -
+                            origin.topWorldPixel);
+}
+
 TileBounds visibleTileBounds(const Camera& camera, int framebufferWidth, int framebufferHeight) {
-    const int tileSize = std::max(camera.tileSizeInPixels, 1);
-    // Snap the camera to whole pixels so the image doesn't shimmer while moving.
-    const std::int64_t leftWorldPixel =
-        static_cast<std::int64_t>(std::floor(camera.centerTileX * tileSize)) - framebufferWidth / 2;
-    const std::int64_t topWorldPixel =
-        static_cast<std::int64_t>(std::floor(camera.centerTileY * tileSize)) - framebufferHeight / 2;
+    const ScreenOrigin origin = screenOriginFor(camera, framebufferWidth, framebufferHeight);
+    const int tileSize = origin.tileSizeInPixels;
 
     TileBounds bounds;
-    bounds.minTileX = static_cast<int>(floorDivide64(leftWorldPixel, tileSize));
-    bounds.minTileY = static_cast<int>(floorDivide64(topWorldPixel, tileSize));
-    bounds.maxTileX = static_cast<int>(floorDivide64(leftWorldPixel + framebufferWidth - 1, tileSize));
-    bounds.maxTileY = static_cast<int>(floorDivide64(topWorldPixel + framebufferHeight - 1, tileSize));
+    bounds.minTileX = static_cast<int>(floorDivide64(origin.leftWorldPixel, tileSize));
+    bounds.minTileY = static_cast<int>(floorDivide64(origin.topWorldPixel, tileSize));
+    bounds.maxTileX = static_cast<int>(floorDivide64(origin.leftWorldPixel + framebufferWidth - 1, tileSize));
+    bounds.maxTileY = static_cast<int>(floorDivide64(origin.topWorldPixel + framebufferHeight - 1, tileSize));
     return bounds;
 }
 
@@ -123,18 +153,94 @@ Renderer::Renderer() {
                 static_cast<std::uint8_t>(hashCoords(grainPatternSeed, x, y) % grainVariantCount);
         }
     }
+
+    using namespace constants;
+    const std::initializer_list<SpriteColorKey> playerColors = {
+        {'h', toPacked(playerHoodColor)},   {'f', toPacked(playerFaceColor)},
+        {'c', toPacked(playerCloakColor)},  {'b', toPacked(playerBootColor)},
+        {'L', toPacked(lanternColor)},      {'l', toPacked(lanternHandleColor)},
+    };
+    // A hooded wanderer with a lantern. Three frames: standing, then two steps.
+    playerFrames_[0] = buildSprite({"..hhh...",
+                                    ".hhhhh..",
+                                    ".hfffh..",
+                                    ".ccccc..",
+                                    "cccccccl",
+                                    ".ccccc.L",
+                                    ".ccccc..",
+                                    "..b.b..."},
+                                   playerColors, true);
+    playerFrames_[1] = buildSprite({"..hhh...",
+                                    ".hhhhh..",
+                                    ".hfffh..",
+                                    ".ccccc..",
+                                    "cccccccl",
+                                    ".ccccc.L",
+                                    ".ccccc..",
+                                    ".b...b.."},
+                                   playerColors, true);
+    playerFrames_[2] = buildSprite({"..hhh...",
+                                    ".hhhhh..",
+                                    ".hfffh..",
+                                    ".ccccc..",
+                                    "cccccccl",
+                                    ".ccccc.L",
+                                    ".ccccc..",
+                                    "...bb..."},
+                                   playerColors, true);
+}
+
+void Renderer::drawPlayer(Framebuffer& framebuffer, const Camera& camera,
+                          const PlayerAppearance& player) const {
+    const ScreenOrigin origin = screenOriginFor(camera, framebuffer.width(), framebuffer.height());
+    const int footX = worldToScreenX(origin, player.tileX);
+    const int footY = worldToScreenY(origin, player.tileY);
+
+    // Scale with zoom in whole steps, but never below 1x so the player stays visible zoomed out.
+    const int scale = std::max(1, camera.tileSizeInPixels / constants::spriteBaseTileSizeInPixels);
+    const Sprite& sprite = playerFrames_[std::clamp(player.walkFrame, 0, playerWalkFrameCount - 1)];
+    const int spriteLeft = footX - (sprite.width * scale) / 2;
+    // Bottom row is outline, so the boots row sits right on the foot point.
+    const int spriteTop = footY - (sprite.height - 1) * scale;
+
+    SpriteDrawOptions options;
+    options.scale = scale;
+    options.flipHorizontally = player.facingLeft;
+
+    if (player.wading) {
+        // Hide the legs and draw a light waterline across the body.
+        options.visibleRows = sprite.height - 1 - constants::wadingHiddenRows;
+        drawSprite(framebuffer, sprite, spriteLeft, spriteTop, options);
+        const PackedColor waterline = toPacked(constants::waterlineColor);
+        const int waterlineY = spriteTop + options.visibleRows * scale;
+        for (int x = spriteLeft; x < spriteLeft + sprite.width * scale; ++x) {
+            framebuffer.setPixelClipped(x, waterlineY, waterline);
+        }
+        return;
+    }
+
+    // Soft shadow: a flat rounded strip under the feet.
+    const int shadowHalfWidth = (sprite.width * scale) / 2 - scale;
+    const int shadowHeight = std::max(1, scale);
+    for (int offsetY = 0; offsetY < shadowHeight; ++offsetY) {
+        for (int offsetX = -shadowHalfWidth; offsetX <= shadowHalfWidth; ++offsetX) {
+            const bool isCorner = std::abs(offsetX) == shadowHalfWidth;
+            if (isCorner) continue;
+            darkenPixel(framebuffer, footX + offsetX, footY + offsetY, constants::spriteShadowStrength);
+        }
+    }
+    drawSprite(framebuffer, sprite, spriteLeft, spriteTop, options);
 }
 
 void Renderer::drawTerrain(Framebuffer& framebuffer, const Camera& camera,
                            const ChunkSource& chunks) const {
     const int width = framebuffer.width();
     const int height = framebuffer.height();
-    const int tileSize = std::max(camera.tileSizeInPixels, 1);
 
-    const std::int64_t leftWorldPixel =
-        static_cast<std::int64_t>(std::floor(camera.centerTileX * tileSize)) - width / 2;
-    const std::int64_t topWorldPixel =
-        static_cast<std::int64_t>(std::floor(camera.centerTileY * tileSize)) - height / 2;
+    const ScreenOrigin origin = screenOriginFor(camera, width, height);
+    const int tileSize = origin.tileSizeInPixels;
+    const std::int64_t leftWorldPixel = origin.leftWorldPixel;
+    const std::int64_t topWorldPixel = origin.topWorldPixel;
     const TileBounds bounds = visibleTileBounds(camera, width, height);
 
     const float grain = static_cast<float>(constants::pixelGrainStrength);

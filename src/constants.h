@@ -47,6 +47,53 @@ inline constexpr int chunkSizeInTiles = 32;
 inline constexpr int spawnSearchRadiusInTiles = 4000;
 inline constexpr int spawnSearchStepInTiles = 16;
 
+// --- Chunk streaming ---
+
+// Chunks are about 9 KB each, so 256 is roughly 2.4 MB. The game raises this
+// if the view itself needs more (zoomed right out).
+inline constexpr int chunkCacheCapacityInChunks = 256;
+
+// Extra ring of chunks loaded past the screen edge, so walking never reveals
+// an unloaded strip.
+inline constexpr int chunkPreloadMarginInChunks = 1;
+
+// Max time per frame spent generating chunks. A 60 Hz frame is 16.7 ms and
+// rendering needs most of it. At least one chunk is always generated so
+// streaming can't stall.
+inline constexpr double chunkGenerationBudgetMs = 4.0;
+
+// --- Player movement ---
+
+inline constexpr double walkSpeedTilesPerSecond = 6.0;
+
+// How quickly the player reaches full speed or stops. Higher is snappier.
+inline constexpr double playerAccelerationSharpness = 12.0;
+
+// Speed multipliers by ground type. Deep ocean is impassable.
+inline constexpr double shallowWaterSpeedMultiplier = 0.45;
+inline constexpr double sandSpeedMultiplier = 0.85;
+inline constexpr double snowSpeedMultiplier = 0.75;
+inline constexpr double mountainSpeedMultiplier = 0.65;
+
+// Distance walked per animation frame.
+inline constexpr double strideLengthInTiles = 0.45;
+
+// Below this speed the player counts as standing still for animation.
+inline constexpr double idleSpeedTilesPerSecond = 0.3;
+
+// --- Camera ---
+
+// How tightly the camera chases the player. Lower is floatier.
+inline constexpr double cameraFollowSharpness = 6.0;
+
+// --- Touch and mouse drag ---
+
+// Drags shorter than this are ignored, so a tap doesn't nudge the player.
+inline constexpr double dragDeadzoneInCssPixels = 8.0;
+
+// Drag this far from where you pressed for full speed.
+inline constexpr double dragFullSpeedInCssPixels = 64.0;
+
 // --- Elevation noise ---
 // Frequencies are in cycles per tile, so 1/420 means features about 420 tiles across.
 
@@ -139,5 +186,26 @@ inline constexpr Rgb8 tundraColor{136, 148, 124};
 inline constexpr Rgb8 snowColor{232, 238, 244};
 inline constexpr Rgb8 mountainColor{122, 116, 112};
 inline constexpr Rgb8 unloadedColor{11, 13, 22};  // matches the page background
+
+// Player sprite
+inline constexpr Rgb8 playerHoodColor{78, 58, 96};
+inline constexpr Rgb8 playerFaceColor{232, 204, 172};
+inline constexpr Rgb8 playerCloakColor{126, 88, 70};
+inline constexpr Rgb8 playerBootColor{44, 34, 38};
+inline constexpr Rgb8 lanternColor{255, 214, 128};
+inline constexpr Rgb8 lanternHandleColor{190, 146, 82};
+inline constexpr Rgb8 spriteOutlineColor{20, 18, 28};
+
+// Light line drawn where water meets a wading sprite.
+inline constexpr Rgb8 waterlineColor{150, 196, 214};
+
+// Rows of the sprite hidden underwater while wading.
+inline constexpr int wadingHiddenRows = 3;
+
+// Shadow under sprites multiplies the ground by this.
+inline constexpr float spriteShadowStrength = 0.6f;
+
+// Sprites are drawn at this tile size at 1x, then scaled up in whole steps.
+inline constexpr int spriteBaseTileSizeInPixels = 8;
 
 }  // namespace wl::constants
