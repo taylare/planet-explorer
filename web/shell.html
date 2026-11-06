@@ -270,6 +270,14 @@
     #beam-button:hover, .buy-button:hover:not(:disabled) { background: rgba(120, 235, 255, 0.14); }
     .buy-button:disabled { opacity: 0.4; cursor: default; border-color: var(--panel-border); }
 
+    /* Star chart cards in the ship panel */
+    .destination-list { display: grid; gap: 8px; }
+    .destination { padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 10px; background: rgba(0, 0, 0, 0.22); }
+    .destination-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .destination-name { font-size: 15px; font-weight: 300; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+    .destination-facts { font-size: 12px; color: var(--text-dim); margin: 4px 0 0; }
+    .destination .planet-swatches { margin: 8px 0 0; }
+
     /* Ship panel */
     .ship-status { font-size: 13px; color: var(--text-dim); margin: 0 0 12px; line-height: 1.5; }
     .ship-status strong { color: var(--text); font-variant-numeric: tabular-nums; }
@@ -473,6 +481,11 @@
     <div class="body">
       <p id="ship-status" class="ship-status"></p>
       <ul id="upgrade-list" class="upgrade-list"></ul>
+      <div class="journal-section">
+        <h3>Star chart</h3>
+        <p id="launch-status" class="ship-status"></p>
+        <div id="destination-list" class="destination-list"></div>
+      </div>
     </div>
   </section>
 
@@ -667,12 +680,69 @@
     });
     const upgradeList = document.getElementById('upgrade-list');
     const shipStatus = document.getElementById('ship-status');
+    // The star chart: three planets to fly to. Launching starts a new world, so the first click
+    // only arms the button and a second click, within a few seconds, confirms it.
+    const launchStatus = document.getElementById('launch-status');
+    const destinationList = document.getElementById('destination-list');
+    let armedDestination = -1;
+    let armedTimer = null;
+    function renderStarChart(launch) {
+      launchStatus.textContent = launch.unlocked
+        ? 'The lander is ready. Your suit and upgrades come with you; the map and journal stay behind.'
+        : `Survey ${launch.survey}% of this planet (${launch.requiredPercent}% needed) and be at the ship to launch.`;
+      destinationList.replaceChildren();
+      launch.destinations.forEach((planet, index) => {
+        const card = document.createElement('div');
+        card.className = 'destination';
+
+        const head = document.createElement('div');
+        head.className = 'destination-head';
+        const name = document.createElement('span');
+        name.className = 'destination-name';
+        name.textContent = planet.name;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'buy-button';
+        button.textContent = armedDestination === index ? 'Confirm launch' : 'Launch';
+        button.disabled = !launch.unlocked;
+        button.addEventListener('click', () => {
+          if (armedDestination !== index) {
+            armedDestination = index;
+            clearTimeout(armedTimer);
+            armedTimer = setTimeout(() => { armedDestination = -1; button.textContent = 'Launch'; }, 4000);
+            button.textContent = 'Confirm launch';
+            return;
+          }
+          armedDestination = -1;
+          clearTimeout(armedTimer);
+          if (Module._wl_launch && Module._wl_launch(index)) closePanels();
+        });
+        head.append(name, button);
+
+        const facts = document.createElement('p');
+        facts.className = 'destination-facts';
+        const moons = `${planet.moons} ${planet.moons === 1 ? 'moon' : 'moons'}`;
+        facts.textContent = `${planet.atmosphere} air, ${planet.gravity.toFixed(2)} g, ${moons}${planet.aurora ? ', aurora' : ''}`;
+
+        const swatches = document.createElement('div');
+        swatches.className = 'planet-swatches';
+        for (const color of planet.swatches) {
+          const chip = document.createElement('span');
+          chip.style.background = color;
+          swatches.appendChild(chip);
+        }
+        card.append(head, facts, swatches);
+        destinationList.appendChild(card);
+      });
+    }
+
     function renderShip(ship) {
       shipStatus.replaceChildren();
       const samples = document.createElement('strong');
       samples.textContent = String(ship.samples);
       shipStatus.append('Research samples: ', samples, '. ',
         ship.nearShip ? 'You are at the ship, so upgrades are available.' : 'Walk back to the ship to buy upgrades.');
+      renderStarChart(ship.launch);
       upgradeList.replaceChildren();
       ship.upgrades.forEach((upgrade, index) => {
         const item = document.createElement('li');

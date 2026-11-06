@@ -24,6 +24,7 @@ Written in C++17, compiled to WebAssembly, drawn pixel by pixel into its own fra
 - Scannable landmarks: towers light a beacon that reveals the map, crystal groves give research samples, and ruins decode a story about the survey crew who came before you
 - Your lander, parked at the start. Suit power drains as you explore (faster at night, on cold ground and in rain or snow) and refills at the ship, a campfire or a hot spring. With a flat suit you slow down and your lamp dims, and you can beam back to the ship
 - Three suit upgrades (scanner, headlamp, power cell) bought at the ship with research samples
+- A star chart: once half a planet is surveyed, launch from the ship to one of three other planets. Your suit, upgrades and samples come with you; the map and journal stay behind
 - A journal of the first time you found each biome, landmark and species, with coordinates, and a survey percentage for the whole planet
 - Automatic saving in your browser, shareable seeds and a "new world" button
 
@@ -136,6 +137,7 @@ All game logic is plain C++ with no browser code, so the same code runs in the n
 | `src/scanner.*` | The field scanner: target choice, scan progress |
 | `src/landmark_actions.*`, `src/lore.*` | What scanning a landmark does, and the story fragments |
 | `src/suit_power.*`, `src/upgrades.*` | Suit power rules and the three upgrades |
+| `src/star_chart.*` | The three launch destinations for a planet |
 | `src/save_state.*` | Save format for localStorage (version 4; older saves still load) |
 | `src/renderer.*`, `src/art.*`, `src/sprite.*` | Framebuffer drawing, lighting, minimap and text-defined sprite art |
 | `src/performance.*` | Frame timings and automatic quality steps |
@@ -165,11 +167,12 @@ The tests cover:
 
 ## What I learned
 
-<!-- A draft to edit into your own words. -->
-
 - **Determinism takes discipline.** Every random choice has to come from the seed and a position, never from "whatever was generated before". Once that held, chunks could be generated in any order, thrown away and regenerated, and saves only needed a handful of values.
 - **Negative coordinates are where bugs hide.** In C++, `/` and `%` round toward zero, so tile -1 lands in chunk 0 unless you floor-divide. The seam tests either side of zero caught exactly that kind of mistake.
 - **fBm is mostly tuning.** The maths is a short loop, but getting continents, coastlines and climate bands to feel right took previews of several seeds and a lot of small threshold changes.
 - **A time budget beats raw speed.** Spreading chunk generation across frames mattered more for smoothness than making any single chunk faster.
 - **Software rendering is affordable at a low resolution.** A 640 pixel framebuffer is cheap enough for per-pixel lighting, shimmer and weather, and the chunky look suits the quiet mood.
 - **Keep the browser at arm's length.** Putting everything except canvas, input and storage in portable C++ meant almost every system could be unit tested natively, without a browser.
+- **Effects that are a function of time need no saving.** Meteor showers, lightning and each planet's look are all worked out from the seed and the clock, so they cost no save data and a test can ask about any moment directly.
+- **Tests find bugs you would never see by playing.** A footprint appeared two seconds after the player stopped, because easing to a halt left a tiny tail of movement that crossed one more stride mark. It only showed up in a test that waited out the footprints.
+- **Run the build early.** Several small mistakes, like a missing `#include` or an unexported `malloc`, only surfaced once CI compiled the code. Building every stage as soon as it is written would have found them one at a time.

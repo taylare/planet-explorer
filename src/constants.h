@@ -680,6 +680,11 @@ inline constexpr Rgb8 shipAccentColor{232, 120, 72};
 inline constexpr Rgb8 shipLegColor{84, 92, 116};
 inline constexpr LightSettings shipLight{3.5, 0.5f, 0.9f, 1.0f, 0.8f};
 
+// --- Launching to other planets ---
+
+// The lander can only lift off once this much of the current planet's survey is done.
+inline constexpr int launchSurveyPercent = 50;
+
 // --- Saving ---
 
 inline constexpr double autosaveIntervalSeconds = 10.0;

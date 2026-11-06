@@ -139,6 +139,20 @@ EMSCRIPTEN_KEEPALIVE int wl_buy_upgrade(int kind) {
 // Only works with a flat suit. Returns 1 on success.
 EMSCRIPTEN_KEEPALIVE int wl_beam_to_ship() { return activeGame && activeGame->beamToShip() ? 1 : 0; }
 
+// Lifts off for destination 0 to 2 on the star chart. Needs you at the ship with the planet surveyed
+// far enough. Upgrades and samples come along; the map and journal stay behind. Returns 1 on success.
+EMSCRIPTEN_KEEPALIVE int wl_launch(int destinationIndex) {
+    if (!activeGame) return 0;
+    wl::WorldSeed destination = 0;
+    if (!activeGame->launchDestination(destinationIndex, destination)) return 0;
+
+    const wl::LaunchCarryOver carry = activeGame->carryOver();
+    startWorld(destination, std::nullopt);
+    activeGame->applyCarryOver(carry);
+    saveNow();
+    return 1;
+}
+
 // JSON for the ship panel. The pointer stays valid until the next call.
 EMSCRIPTEN_KEEPALIVE const char* wl_ship_json() {
     shipJsonBuffer = activeGame ? activeGame->shipJson() : "{}";

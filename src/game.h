@@ -2,6 +2,7 @@
 // main.cpp drives it on the web; tests drive it natively.
 #pragma once
 
+#include <array>
 #include <limits>
 #include <string>
 #include <vector>
@@ -22,6 +23,7 @@
 #include "save_state.h"
 #include "scanner.h"
 #include "sky_events.h"
+#include "star_chart.h"
 #include "suit_power.h"
 #include "upgrades.h"
 #include "weather.h"
@@ -41,6 +43,13 @@ enum class GameEventType {
 struct GameEvent {
     GameEventType type;
     std::string text;
+};
+
+// What a launch brings along to the next planet: the suit and its upgrades. The map, the journal
+// and the survey belong to the planet you leave.
+struct LaunchCarryOver {
+    Upgrades upgrades;
+    int samples = 0;
 };
 
 class Game {
@@ -66,6 +75,13 @@ public:
     bool buyUpgrade(UpgradeKind kind);
     // Only works with an empty suit: moves you to the ship and refills part of the battery.
     bool beamToShip();
+    // Launching needs you at the ship and the planet surveyed far enough.
+    bool canLaunch() const;
+    // The seed of a destination, if launching is allowed and the index is valid.
+    bool launchDestination(int index, WorldSeed& seedOut) const;
+    LaunchCarryOver carryOver() const { return {upgrades_, samples_}; }
+    // Applies what a launch brought along, and refills the suit for the fresh start.
+    void applyCarryOver(const LaunchCarryOver& carry);
     // For the ship panel: {"samples":3,"nearShip":true,"power":0.8,"upgrades":[...]}
     std::string shipJson() const;
     // Hold to scan nearby animals. Also makes the player creep so animals stay calm.
@@ -167,6 +183,8 @@ private:
     Upgrades upgrades_;
     SuitPower power_;
     bool nearShip_ = false;
+    std::array<WorldSeed, destinationCount> destinations_{};
+    std::array<std::string, destinationCount> destinationJson_;  // planet cards for the star chart
     bool lowPowerWarned_ = false;
     bool emptyPowerWarned_ = false;
 

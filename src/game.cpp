@@ -54,6 +54,12 @@ Game::Game(WorldSeed seed)
     cameraPosition_ = player_.position();
     previousCameraPosition_ = cameraPosition_;
 
+    // The star chart is fixed for the planet, so work it out once.
+    destinations_ = destinationSeeds(seed);
+    for (int index = 0; index < destinationCount; ++index) {
+        destinationJson_[index] = planetToJson(makePlanetProfile(destinations_[index]));
+    }
+
     resizeDevice(constants::defaultDeviceWidthInPixels, constants::defaultDeviceHeightInPixels);
     events_.push_back({GameEventType::PlanetLanded, planet_.name});
 }
@@ -490,6 +496,27 @@ bool Game::buyUpgrade(UpgradeKind kind) {
     return true;
 }
 
+bool Game::canLaunch() const {
+    return nearShip_ && journal_.surveyPercent() >= constants::launchSurveyPercent;
+}
+
+bool Game::launchDestination(int index, WorldSeed& seedOut) const {
+    if (!canLaunch() || index < 0 || index >= destinationCount) return false;
+    seedOut = destinations_[index];
+    return true;
+}
+
+void Game::applyCarryOver(const LaunchCarryOver& carry) {
+    upgrades_ = carry.upgrades;
+    samples_ = carry.samples;
+    power_.setCapacity(suitCapacityAt(upgrades_.level(UpgradeKind::PowerCell)));
+    power_.setFraction(1.0);
+    lowPowerWarned_ = false;
+    emptyPowerWarned_ = false;
+    events_.push_back({GameEventType::JournalChanged, {}});
+    requestSave();
+}
+
 bool Game::beamToShip() {
     if (!power_.isEmpty()) return false;
 
@@ -535,7 +562,14 @@ std::string Game::shipJson() const {
              << "\",\"level\":" << upgrades_.level(kind) << ",\"max\":" << constants::maxUpgradeLevel
              << ",\"cost\":" << cost << ",\"canBuy\":" << (canBuy ? "true" : "false") << '}';
     }
-    json << "]}";
+    json << "],\"launch\":{\"unlocked\":" << (canLaunch() ? "true" : "false")
+         << ",\"requiredPercent\":" << constants::launchSurveyPercent << ",\"survey\":" << journal_.surveyPercent()
+         << ",\"destinations\":[";
+    for (int index = 0; index < destinationCount; ++index) {
+        if (index > 0) json << ',';
+        json << destinationJson_[index];  // already a complete JSON object
+    }
+    json << "]}}";
     return json.str();
 }
 
